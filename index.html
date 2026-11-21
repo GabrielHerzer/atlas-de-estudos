@@ -7,19 +7,44 @@
     <title>Atlas de Estudos</title>
     <link rel="icon" type="image/svg+xml" href="simbolo.svg" />
     <!-- Aparência e adaptação para celular. -->
+    <script>
+      try {
+        if (localStorage.getItem("atlas-theme") === "dark") document.documentElement.dataset.theme = "dark";
+      } catch { /* O tema também funciona sem armazenamento. */ }
+    </script>
     <link rel="stylesheet" href="estilos.css" />
   </head>
-  <body>
-    <!-- Identidade do Atlas e cartões de progresso. -->
+  <body class="atlas-menu-open">
+    <aside id="atlas-sidebar" aria-label="Menu do Atlas">
+      <nav class="sidebar-nav" aria-label="Seções do Atlas">
+        <a id="sidebar-study" href="#materias">Espaço de estudo</a>
+        <a id="sidebar-overview" href="#visao-geral">Visão geral</a>
+      </nav>
+      <div class="sidebar-account">
+        <button id="theme-switch" type="button" role="switch" aria-checked="false">Modo escuro<span class="theme-track" aria-hidden="true"></span></button>
+        <button id="sidebar-login" type="button">Login</button>
+        <span id="sidebar-login-status" role="status"></span>
+      </div>
+    </aside>
+    <div id="sidebar-scrim" aria-hidden="true"></div>
+    <button id="open-sidebar" class="sidebar-edge" type="button" aria-label="Fechar menu lateral" aria-expanded="true" aria-controls="atlas-sidebar"><span aria-hidden="true">&#8249;</span></button>
+    <button id="sidebar-brand" type="button" aria-controls="atlas-sidebar" aria-expanded="true" aria-label="Atlas de Estudos, fechar menu lateral">
+      <img src="simbolo.svg" width="36" height="36" alt="" />
+      <span>atlas<small>DE ESTUDOS</small></span>
+    </button>
+    <!-- Cartões de progresso. -->
     <header class="hero">
+      <svg class="atlas-sky" viewBox="0 0 600 268" aria-hidden="true" focusable="false">
+        <g fill="none" stroke="#b8e5a5" stroke-width="2" stroke-linecap="round">
+          <path class="sky-line" pathLength="1" d="M30 238 176 94"/>
+          <path class="sky-line" style="--start:1.4s" pathLength="1" d="M176 94 309 177"/>
+          <path class="sky-line" style="--start:2.8s" pathLength="1" d="M309 177 480 44"/>
+        </g>
+        <g class="sky-destination" transform="translate(480 44)">
+          <g class="sky-bloom"><path class="sky-star" d="M0-30Q6-6 30 0 6 6 0 30-6 6-30 0-6-6 0-30Z" fill="#f2d49a"/></g>
+        </g>
+      </svg>
       <div class="wrap">
-        <div class="brandbar">
-          <a class="brand" href="#materias" aria-label="Atlas de estudos, minhas matérias"
-            ><img class="brand-symbol" src="simbolo.svg" alt="" aria-hidden="true" /><span
-              >atlas<span class="brand-sub">DE ESTUDOS</span></span
-            ></a
-          >
-        </div>
         <h1 class="study-heading">Seu espaço de estudo</h1>
         <div class="hero-grid">
           <section class="journey" aria-label="Progresso do guia geral">
@@ -85,12 +110,16 @@
         ><button id="nav-calendar" type="button">Planejamento</button>
       </nav>
       <section class="page-intro">
-        <h2 id="page-title" tabindex="-1">Minhas matérias</h2>
-        <p id="page-description">
-          Cada matéria no seu espaço, organizada por área. Abra uma delas para acompanhar seus
-          tópicos.
-        </p>
+        <div id="subject-space-ring" class="subject-space-ring" aria-hidden="true" hidden></div>
+        <div>
+          <h2 id="page-title" tabindex="-1">Minhas matérias</h2>
+          <p id="subject-space-count" hidden></p>
+        </div>
       </section>
+      <section id="overview-subjects" class="overview-subjects" aria-label="Progresso por matéria" hidden>
+        <div id="overview-grid" class="overview-grid"></div>
+      </section>
+      <section id="subject-space" class="subject-space" aria-label="Resumo da matéria" hidden></section>
       <!-- Calendário e agenda do dia selecionado. -->
       <section
         id="calendar-panel"
@@ -114,7 +143,7 @@
             <h3 id="calendar-day-title" aria-live="polite"></h3>
             <button id="calendar-plan" class="btn primary" type="button">Planejar</button>
           </div>
-          <p id="calendar-empty" class="calendar-empty">Nenhum tópico planejado para este dia.</p>
+          <p id="calendar-empty" class="calendar-empty">Nenhum estudo planejado ou registrado neste dia.</p>
           <ul id="calendar-list" class="calendar-list"></ul>
         </div>
       </section>
@@ -172,28 +201,9 @@
         <div class="exam-info">
           <h3 id="exam-heading"></h3>
           <p id="exam-period"></p>
-          <div class="incidence-legend">
-            <span class="insignia">↑↑↑ Top 3 da disciplina</span
-            ><span class="insignia">↑↑ Outros com 10% ou mais</span
-            ><span class="insignia">↑ Demais assuntos observados</span>
-          </div>
-          <p>
-            <b>As setas indicam frequência; o pin é sua prioridade pessoal.</b> Os três primeiros de
-            cada disciplina recebem três setas. Os demais recebem duas quando representam pelo menos
-            10% das questões da disciplina; abaixo disso, recebem uma.
-          </p>
-          <p>
-            Só aparecem assuntos classificados com pelo menos uma ocorrência na base consultada.
-            Ausência nessa base não significa “nunca caiu”, nem exclui conteúdos secundários ou o
-            programa oficial.
-          </p>
-          <p>
-            Checks, estrelas e pins deste recorte são independentes do guia completo e dos outros
-            vestibulares. Seus pins também ficam disponíveis em Pendentes ao selecionar o mesmo
-            vestibular.
-          </p>
           <details>
-            <summary>Ver base, limites e critérios de contagem</summary>
+            <summary>Fontes e metodologia</summary>
+            <p>↑↑↑ Três mais frequentes · ↑↑ Demais com 10% ou mais · ↑ Outros assuntos registrados.</p>
             <p id="exam-method"></p>
             <ul id="exam-papers" hidden></ul>
             <p>
@@ -203,12 +213,7 @@
               estatísticas oficiais.
             </p>
           </details>
-          <p>
-            Fonte de referência:
-            <a id="exam-source" target="_blank" rel="noopener"
-              >consultar levantamento ou acervo de provas</a
-            >. A autoria da classificação está indicada acima e em cada gráfico.
-          </p>
+          <p><a id="exam-source" target="_blank" rel="noopener">Consultar acervo de provas</a></p>
         </div>
       </section>
       <section class="stats" aria-label="Seu progresso">
@@ -259,7 +264,6 @@
           <span class="content-overview-icon" aria-hidden="true">▦</span>
           <div>
             <b>Avaliação por conteúdo</b>
-            <p>Abra “Ver conteúdos” em um tópico para acompanhar cada item.</p>
           </div>
         </div>
         <div>
@@ -298,39 +302,39 @@
         <span id="result-count"></span
         ><span id="save-status" role="status" aria-live="polite">Pronto para marcar</span>
       </div>
-      <p class="privacy">
-        <b>Priorizar</b> leva o item ao início da sua lista. Clique novamente para remover a
-        prioridade. O check e as estrelas são independentes. Matérias, tópicos e conteúdos têm
-        marcações independentes. O resumo geral acompanha os tópicos; a avaliação por conteúdo
-        aparece logo abaixo. O progresso fica neste navegador; use <b>Salvar backup</b> para
-        guardá-lo e levar para outro dispositivo.
-      </p>
       <!-- Os cartões são preenchidos pelo aplicativo.js com os dados carregados. -->
       <section id="subjects" aria-label="Matérias e conteúdos"></section>
       <section class="empty" id="empty" hidden>
         <h2>Nenhum conteúdo encontrado</h2>
         <p>Tente outra palavra ou escolha “Todos os conteúdos”.</p>
       </section>
-      <footer class="footer">
-        <p>
-          <b>Como usar as estrelas:</b> 1 — primeiro contato; 2 — preciso de bastante ajuda; 3 —
-          resolvo o básico; 4 — resolvo a maioria com segurança; 5 — explico e resolvo situações
-          variadas. Sua autoavaliação pode mudar a qualquer momento; use × para removê-la.
-        </p>
-        <p>
-          <b>Domínio é diferente de dificuldade.</b> Os selos N1 (Base), N2 (Intermediário) e N3
-          (Avançado) vêm da estimativa de dificuldade do guia. As estrelas são escolhidas
-          exclusivamente por você.
-        </p>
-        <p>
-          Sem cadastro e sem envio de dados. Use o mesmo navegador e mantenha este arquivo; dados
-          locais podem ser removidos pelo navegador. Guarde backups periódicos. Backups da versão
-          anterior também podem ser restaurados; eles começam sem pins.
-        </p>
-      </footer>
     </main>
     <input type="file" id="backup-file" accept=".json,application/json" hidden />
     <!-- Janelas que se abrem sobre a página. -->
+    <dialog id="subject-topic-dialog" aria-labelledby="subject-topic-title">
+      <h2 id="subject-topic-title"></h2>
+      <p id="subject-topic-highlights"></p>
+      <dl class="subject-topic-facts">
+        <div><dt>Estudo</dt><dd id="subject-topic-status"></dd></div>
+        <div><dt>Meu domínio</dt><dd id="subject-topic-mastery"></dd></div>
+        <div><dt>Dificuldade</dt><dd id="subject-topic-level"></dd></div>
+      </dl>
+      <div class="subject-topic-sections">
+        <section aria-labelledby="subject-topic-contents-title">
+          <h3 id="subject-topic-contents-title">Conteúdos</h3>
+          <ul id="subject-topic-contents" class="subject-topic-contents"></ul>
+        </section>
+        <section aria-labelledby="subject-topic-ranking-title">
+          <h3 id="subject-topic-ranking-title">Ranking por incidência</h3>
+          <ol id="subject-topic-ranking" class="subject-topic-ranking"></ol>
+          <p id="subject-topic-ranking-note" class="subject-topic-ranking-note"></p>
+        </section>
+      </div>
+      <form class="actions" method="dialog">
+        <a id="subject-topic-open" class="btn primary">Abrir no espaço de estudo</a>
+        <button class="btn" type="submit">Fechar</button>
+      </form>
+    </dialog>
     <dialog id="overview-dialog" aria-labelledby="overview-title">
       <header class="overview-header">
         <div class="wrap">

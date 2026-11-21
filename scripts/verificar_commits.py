@@ -6,8 +6,7 @@ import subprocess
 from pathlib import Path
 
 
-TIPOS = "feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert"
-MENSAGEM = re.compile(rf"(?:{TIPOS})(?:\([a-z0-9][a-z0-9./_-]*\))?!?: \S.*")
+MENSAGEM = re.compile(r"(?:feat|fix|docs|chore): \S.*")
 BRANCH = re.compile(r"(?:feature|fix|docs|refactor|test|chore|hotfix)/[a-z0-9]+(?:-[a-z0-9]+)*")
 
 
@@ -16,8 +15,8 @@ def conferir_mensagem(texto):
                    if linha.strip() and not linha.lstrip().startswith("#")), "")
     if MENSAGEM.fullmatch(titulo):
         return True
-    print(f"Mensagem inválida: {titulo!r}. Use tipo(escopo): descrição.")
-    print("Exemplo: feat(calendario): adiciona opção de reagendar")
+    print(f"Mensagem inválida: {titulo!r}. Use feat:, fix:, docs: ou chore: com uma descrição.")
+    print("Exemplo: feat: adiciona opção de reagendar")
     return False
 
 

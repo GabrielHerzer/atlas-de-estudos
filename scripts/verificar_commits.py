@@ -36,10 +36,8 @@ def main():
         return 0 if conferir_mensagem(args.arquivo.read_text(encoding="utf-8-sig")) else 1
 
     if args.destino == "main":
-        branch_valida = args.branch == "develop" or (
-            args.branch.startswith("hotfix/") and BRANCH.fullmatch(args.branch)
-        )
-        exemplo = "develop ou hotfix/descricao-curta"
+        branch_valida = args.branch == "develop"
+        exemplo = "develop"
     else:
         branch_valida = BRANCH.fullmatch(args.branch)
         exemplo = "feature/descricao-curta ou fix/descricao-curta"

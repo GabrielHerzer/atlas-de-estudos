@@ -6,11 +6,13 @@
 2. Crie uma branch de trabalho, como `git switch -c feature/reagendar-estudo`.
 3. Comece a mensagem do commit com `feat:`, `fix:`, `docs:` ou `chore:`, seguido de espaço e descrição.
 4. Envie sua branch e abra um pull request para `develop`. Use um merge commit para preservar o histórico.
-5. Quando a próxima versão estiver pronta, abra um pull request de `develop` para `main`.
+5. Quando a próxima versão estiver pronta, abra um pull request de `develop` para `main` e deixe-o aberto para a dupla verificação.
+
+Antes do merge em `main`, o Codex revisa as mudanças, roda as verificações e apresenta o resultado ao Gabriel. O merge exige a aprovação explícita do Gabriel para a revisão apresentada e a aprovação das verificações do GitHub. Se houver mudanças depois da revisão, o Codex confere a nova versão e pede uma nova aprovação.
 
 Use `feature/` para funcionalidades, `fix/` para correções, `docs/` para documentação, `refactor/` para reorganização, `test/` para testes e `chore/` para manutenção. Escreva o nome em minúsculas com hífens, como `fix/calendario-mobile`.
 
-Para uma correção urgente na versão publicada, crie `hotfix/descricao-curta` a partir de `main` e abra um pull request para `main`. Depois abra um pull request levando a branch do hotfix para `develop`.
+Correções urgentes também passam por `develop` e seguem a mesma revisão antes de chegar a `main`.
 
 Exemplos de mensagens:
 

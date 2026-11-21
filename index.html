@@ -1,0 +1,403 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Atlas de Estudos</title>
+    <link rel="icon" type="image/svg+xml" href="simbolo.svg" />
+    <!-- Aparência e adaptação para celular. -->
+    <link rel="stylesheet" href="estilos.css" />
+  </head>
+  <body>
+    <!-- Identidade do Atlas e cartões de progresso. -->
+    <header class="hero">
+      <div class="wrap">
+        <div class="brandbar">
+          <a class="brand" href="#materias" aria-label="Atlas de estudos, minhas matérias"
+            ><img class="brand-symbol" src="simbolo.svg" alt="" aria-hidden="true" /><span
+              >atlas<span class="brand-sub">DE ESTUDOS</span></span
+            ></a
+          >
+        </div>
+        <h1 class="study-heading">Seu espaço de estudo</h1>
+        <div class="hero-grid">
+          <section class="journey" aria-label="Progresso do guia geral">
+            <div class="journey-top">
+              <h2>Estudo geral</h2>
+              <span class="journey-tag">Guia completo</span>
+            </div>
+            <div class="journey-main">
+              <div class="journey-ring" id="hero-ring" aria-hidden="true">
+                <div><strong id="hero-percent">0%</strong><span>dos tópicos</span></div>
+              </div>
+              <div class="journey-copy">
+                <strong id="hero-progress-copy"></strong>
+                <p id="hero-priorities"></p>
+              </div>
+            </div>
+          </section>
+          <section class="journey exam-dashboard" aria-label="Progresso por vestibular">
+            <div class="journey-top">
+              <h2>Meu vestibular</h2>
+              <button type="button" id="dashboard-change" class="journey-tag" hidden>
+                Trocar prova
+              </button>
+            </div>
+            <button type="button" id="dashboard-empty" aria-label="Adicionar vestibular">
+              <span aria-hidden="true">+</span>
+            </button>
+            <div class="journey-main" id="dashboard-result" hidden aria-live="polite">
+              <div class="journey-ring" id="dashboard-ring" aria-hidden="true">
+                <div><strong id="dashboard-percent"></strong><span>dos tópicos</span></div>
+              </div>
+              <div class="journey-copy">
+                <strong id="dashboard-title"></strong>
+                <p id="dashboard-count"></p>
+                <p id="dashboard-priorities"></p>
+              </div>
+            </div>
+          </section>
+        </div>
+        <div class="hero-bottom">
+          <div class="legend">
+            <span class="offline-dot" aria-hidden="true"></span>Sem cadastro. No seu ritmo.
+          </div>
+          <div class="actions">
+            <button class="btn primary" id="export">Salvar backup</button
+            ><button class="btn" id="import">Restaurar backup</button
+            ><button class="btn" id="print">Imprimir</button>
+          </div>
+        </div>
+      </div>
+    </header>
+    <dialog id="dashboard-picker" aria-labelledby="dashboard-picker-title">
+      <h2 id="dashboard-picker-title">Escolha seu vestibular</h2>
+      <div id="dashboard-options" class="dashboard-options"></div>
+      <form method="dialog"><button class="btn">Cancelar</button></form>
+    </dialog>
+    <!-- Navegação e área principal de estudo. -->
+    <main class="wrap">
+      <nav class="page-nav" aria-label="Páginas do checklist">
+        <button id="nav-subjects" type="button" aria-current="page">Minhas matérias</button
+        ><button id="nav-pending" type="button">Pendentes</button
+        ><button id="nav-exams" type="button">Vestibulares</button
+        ><button id="nav-calendar" type="button">Planejamento</button>
+      </nav>
+      <section class="page-intro">
+        <h2 id="page-title" tabindex="-1">Minhas matérias</h2>
+        <p id="page-description">
+          Cada matéria no seu espaço, organizada por área. Abra uma delas para acompanhar seus
+          tópicos.
+        </p>
+      </section>
+      <!-- Calendário e agenda do dia selecionado. -->
+      <section
+        id="calendar-panel"
+        class="calendar-layout"
+        hidden
+        aria-label="Calendário de estudos"
+      >
+        <div class="calendar-card">
+          <div class="calendar-controls">
+            <button id="calendar-prev" class="btn" type="button" aria-label="Mês anterior">
+              ‹
+            </button>
+            <h3 id="calendar-month" aria-live="polite"></h3>
+            <button id="calendar-next" class="btn" type="button" aria-label="Próximo mês">›</button>
+            <button id="calendar-today" class="btn" type="button">Hoje</button>
+          </div>
+          <div id="calendar-grid" class="calendar-grid"></div>
+        </div>
+        <div class="calendar-card">
+          <div class="calendar-agenda-head">
+            <h3 id="calendar-day-title" aria-live="polite"></h3>
+            <button id="calendar-plan" class="btn primary" type="button">Planejar</button>
+          </div>
+          <p id="calendar-empty" class="calendar-empty">Nenhum tópico planejado para este dia.</p>
+          <ul id="calendar-list" class="calendar-list"></ul>
+        </div>
+      </section>
+      <section
+        id="calendar-banner"
+        class="calendar-banner"
+        hidden
+        aria-label="Seleção de tópicos para o dia"
+      >
+        <div>
+          <strong id="calendar-target"></strong><span id="calendar-count" aria-live="polite"></span>
+        </div>
+        <button id="calendar-finish" class="btn" type="button">Voltar ao calendário</button>
+      </section>
+      <section id="pending-scope-wrap" class="review-planner" aria-label="Escolher revisão" hidden>
+        <div class="review-cards">
+          <button type="button" id="review-general" class="review-card">
+            <span class="review-kicker">GUIA COMPLETO</span>
+            <strong>Minhas matérias</strong>
+            <span id="review-general-count"></span>
+          </button>
+          <div id="review-exam-card" class="review-card review-exam-card">
+            <button type="button" id="review-add">
+              <span aria-hidden="true">＋</span> Adicionar revisão de vestibular
+            </button>
+            <button type="button" id="review-exam" hidden>
+              <span class="review-kicker">REVISÃO DE VESTIBULAR</span>
+              <strong id="review-exam-name"></strong>
+              <span id="review-exam-count"></span>
+            </button>
+            <button type="button" id="review-change" class="btn" hidden>Trocar prova</button>
+          </div>
+        </div>
+        <h3 id="review-heading" class="review-heading"></h3>
+      </section>
+      <dialog id="review-picker" aria-labelledby="review-picker-title">
+        <h2 id="review-picker-title">Adicionar revisão de vestibular</h2>
+        <p>Escolha a prova para ver suas matérias e tópicos pendentes.</p>
+        <div id="review-options" class="dashboard-options"></div>
+        <form method="dialog"><button class="btn">Cancelar</button></form>
+      </dialog>
+      <div class="plan-options" id="plan-options" hidden>
+        <span id="pending-summary"></span
+        ><label><input type="checkbox" id="only-pinned" />Somente prioridades</label>
+      </div>
+      <section id="exam-section" hidden aria-label="Seleção de vestibular">
+        <div class="exam-picker" aria-label="Vestibular">
+          <button type="button" data-exam="enem" aria-pressed="true">ENEM</button
+          ><button type="button" data-exam="fuvest" aria-pressed="false">Fuvest</button
+          ><button type="button" data-exam="unesp" aria-pressed="false">Unesp</button
+          ><button type="button" data-exam="ufms" aria-pressed="false">UFMS</button
+          ><button type="button" data-exam="eam" aria-pressed="false">EAM</button
+          ><button type="button" data-exam="tjsp" aria-pressed="false">TJSP</button>
+        </div>
+        <div class="exam-info">
+          <h3 id="exam-heading"></h3>
+          <p id="exam-period"></p>
+          <div class="incidence-legend">
+            <span class="insignia">↑↑↑ Top 3 da disciplina</span
+            ><span class="insignia">↑↑ Outros com 10% ou mais</span
+            ><span class="insignia">↑ Demais assuntos observados</span>
+          </div>
+          <p>
+            <b>As setas indicam frequência; o pin é sua prioridade pessoal.</b> Os três primeiros de
+            cada disciplina recebem três setas. Os demais recebem duas quando representam pelo menos
+            10% das questões da disciplina; abaixo disso, recebem uma.
+          </p>
+          <p>
+            Só aparecem assuntos classificados com pelo menos uma ocorrência na base consultada.
+            Ausência nessa base não significa “nunca caiu”, nem exclui conteúdos secundários ou o
+            programa oficial.
+          </p>
+          <p>
+            Checks, estrelas e pins deste recorte são independentes do guia completo e dos outros
+            vestibulares. Seus pins também ficam disponíveis em Pendentes ao selecionar o mesmo
+            vestibular.
+          </p>
+          <details>
+            <summary>Ver base, limites e critérios de contagem</summary>
+            <p id="exam-method"></p>
+            <ul id="exam-papers" hidden></ul>
+            <p>
+              Os percentuais usam o total de cada disciplina. Categorias e períodos variam entre as
+              bases; não compare diretamente setas de bancas diferentes. Em empates, a ordem da base
+              resolve quais são os três primeiros. As classificações podem conter erros e não são
+              estatísticas oficiais.
+            </p>
+          </details>
+          <p>
+            Fonte de referência:
+            <a id="exam-source" target="_blank" rel="noopener"
+              >consultar levantamento ou acervo de provas</a
+            >. A autoria da classificação está indicada acima e em cada gráfico.
+          </p>
+        </div>
+      </section>
+      <section class="stats" aria-label="Seu progresso">
+        <div class="stat">
+          <div class="label">Matérias que já estudei</div>
+          <div class="value" id="subject-count">0 / 17</div>
+          <div class="hint">Marcadas por você</div>
+          <div
+            class="progress"
+            role="progressbar"
+            aria-label="Matérias estudadas"
+            aria-valuemin="0"
+            aria-valuemax="17"
+            aria-valuenow="0"
+            id="subject-progress"
+          >
+            <span></span>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="label">Tópicos que já estudei</div>
+          <div class="value" id="topic-count">0 / 162</div>
+          <div class="hint">Dentro das matérias</div>
+          <div
+            class="progress"
+            role="progressbar"
+            aria-label="Tópicos estudados"
+            aria-valuemin="0"
+            aria-valuemax="162"
+            aria-valuenow="0"
+            id="topic-progress"
+          >
+            <span></span>
+          </div>
+        </div>
+        <div class="stat">
+          <div class="label">Meu domínio nas matérias</div>
+          <div class="value" id="mastery-average">—</div>
+          <div class="hint" id="mastery-count">Nenhuma matéria avaliada ainda</div>
+        </div>
+      </section>
+      <section
+        class="content-overview"
+        id="content-overview"
+        aria-label="Progresso nos conteúdos detalhados"
+      >
+        <div>
+          <span class="content-overview-icon" aria-hidden="true">▦</span>
+          <div>
+            <b>Avaliação por conteúdo</b>
+            <p>Abra “Ver conteúdos” em um tópico para acompanhar cada item.</p>
+          </div>
+        </div>
+        <div>
+          <strong id="content-overview-count">0 / 0</strong><span>conteúdos estudados</span>
+        </div>
+        <div>
+          <strong class="content-domain-label">Domínio dos conteúdos</strong
+          ><span id="content-overview-rating">Nenhum conteúdo avaliado ainda</span>
+        </div>
+      </section>
+      <div class="notice" id="notice" role="alert"></div>
+      <div class="toolbar">
+        <div class="field">
+          <label for="search">Encontrar uma matéria ou conteúdo</label
+          ><input
+            id="search"
+            type="search"
+            placeholder="Ex.: matemática, genética, oração…"
+            autocomplete="off"
+          />
+        </div>
+        <div class="field filter">
+          <label for="filter">Mostrar</label
+          ><select id="filter">
+            <option value="all">Todos os conteúdos</option>
+            <option value="todo">Tópicos ainda não estudados</option>
+            <option value="review">Tópicos com 1 ou 2 estrelas</option>
+          </select>
+        </div>
+        <div class="view-tools">
+          <button class="btn" id="expand">Abrir todas</button
+          ><button class="btn" id="collapse">Fechar todas</button>
+        </div>
+      </div>
+      <div class="savebar">
+        <span id="result-count"></span
+        ><span id="save-status" role="status" aria-live="polite">Pronto para marcar</span>
+      </div>
+      <p class="privacy">
+        <b>Priorizar</b> leva o item ao início da sua lista. Clique novamente para remover a
+        prioridade. O check e as estrelas são independentes. Matérias, tópicos e conteúdos têm
+        marcações independentes. O resumo geral acompanha os tópicos; a avaliação por conteúdo
+        aparece logo abaixo. O progresso fica neste navegador; use <b>Salvar backup</b> para
+        guardá-lo e levar para outro dispositivo.
+      </p>
+      <!-- Os cartões são preenchidos pelo aplicativo.js com os dados carregados. -->
+      <section id="subjects" aria-label="Matérias e conteúdos"></section>
+      <section class="empty" id="empty" hidden>
+        <h2>Nenhum conteúdo encontrado</h2>
+        <p>Tente outra palavra ou escolha “Todos os conteúdos”.</p>
+      </section>
+      <footer class="footer">
+        <p>
+          <b>Como usar as estrelas:</b> 1 — primeiro contato; 2 — preciso de bastante ajuda; 3 —
+          resolvo o básico; 4 — resolvo a maioria com segurança; 5 — explico e resolvo situações
+          variadas. Sua autoavaliação pode mudar a qualquer momento; use × para removê-la.
+        </p>
+        <p>
+          <b>Domínio é diferente de dificuldade.</b> Os selos N1 (Base), N2 (Intermediário) e N3
+          (Avançado) vêm da estimativa de dificuldade do guia. As estrelas são escolhidas
+          exclusivamente por você.
+        </p>
+        <p>
+          Sem cadastro e sem envio de dados. Use o mesmo navegador e mantenha este arquivo; dados
+          locais podem ser removidos pelo navegador. Guarde backups periódicos. Backups da versão
+          anterior também podem ser restaurados; eles começam sem pins.
+        </p>
+      </footer>
+    </main>
+    <input type="file" id="backup-file" accept=".json,application/json" hidden />
+    <!-- Janelas que se abrem sobre a página. -->
+    <dialog id="overview-dialog" aria-labelledby="overview-title">
+      <header class="overview-header">
+        <div class="wrap">
+          <div>
+            <h2 id="overview-title"></h2>
+            <p id="overview-summary"></p>
+          </div>
+          <form method="dialog"><button class="btn" autofocus>Fechar</button></form>
+        </div>
+      </header>
+      <div class="wrap">
+        <a id="overview-guide" class="btn guide-link" hidden>Abrir em Minhas matérias</a>
+        <ul id="overview-list" class="overview-list" aria-label="Domínio por item"></ul>
+      </div>
+    </dialog>
+    <dialog id="training-dialog" aria-labelledby="training-title">
+      <h2 id="training-title">Registrar treino</h2>
+      <p id="training-topic"></p>
+      <p>Registro pessoal · não oficial</p>
+      <form id="training-form">
+        <div class="training-fields">
+          <label for="training-attempted"
+            >Questões feitas<input
+              id="training-attempted"
+              type="number"
+              min="1"
+              max="10000"
+              step="1"
+              required
+          /></label>
+          <label for="training-correct"
+            >Acertos<input
+              id="training-correct"
+              type="number"
+              min="0"
+              max="10000"
+              step="1"
+              required
+          /></label>
+        </div>
+        <p id="training-error" class="training-error" role="alert" hidden></p>
+        <div class="actions">
+          <button type="button" class="btn" id="training-close">Fechar</button
+          ><button class="btn primary">Salvar treino</button>
+        </div>
+      </form>
+      <h3>Histórico</h3>
+      <p id="training-no-history">Nenhum treino registrado.</p>
+      <ul id="training-history" class="training-history"></ul>
+    </dialog>
+    <dialog id="restore-dialog" aria-labelledby="restore-title">
+      <h2 id="restore-title">Restaurar seu progresso</h2>
+      <p id="restore-summary"></p>
+      <p>
+        As marcações presentes no backup substituirão as correspondentes neste navegador. Os demais
+        conteúdos serão mantidos.
+      </p>
+      <div class="actions">
+        <button class="btn" id="cancel-restore">Cancelar</button
+        ><button class="btn primary" id="confirm-restore">Restaurar marcações</button>
+      </div>
+    </dialog>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <!-- A ordem importa. Primeiro carregamos os dados, depois o comportamento. -->
+    <script src="dados/conteudos.js"></script>
+    <script src="dados/vestibulares.js"></script>
+    <script src="aplicativo.js"></script>
+  </body>
+</html>

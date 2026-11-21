@@ -67,6 +67,14 @@
   }
   let calendarPlans = Object.create(null);
   let calendarDone = Object.create(null);
+  let studyHistory = Object.create(null);
+  const studyEntries = new Map(plannable);
+  for (const subject of allSections.filter(isVisibleSubject)) {
+    studyEntries.set(subject.id, { subject, title: subject.title });
+    for (const topic of subject.topics) {
+      studyEntries.set(topic.id, { subject, topic, title: topic.title });
+    }
+  }
 
   // Datas do calendário usam o horário local do aparelho.
   function dateKey(date) {
@@ -81,13 +89,13 @@
   }
 
   // Confere os dados antes de recuperar um planejamento salvo.
-  function readCalendarPlans(value, plans) {
+  function readCalendarPlans(value, plans, entries = plannable) {
     const result = Object.create(null);
     if (!value || typeof value !== "object" || Array.isArray(value)) return result;
     for (const [key, ids] of Object.entries(value)) {
       if (!calendarDate(key) || !Array.isArray(ids)) continue;
       const valid = [
-        ...new Set(ids.filter((id) => (plans ? plans[key]?.includes(id) : plannable.has(id)))),
+        ...new Set(ids.filter((id) => (plans ? plans[key]?.includes(id) : entries.has(id)))),
       ];
       if (valid.length) result[key] = valid;
     }
@@ -149,6 +157,7 @@
         if (validItem(saved.items[id])) items[id] = normalizeItem(saved.items[id]);
       calendarPlans = readCalendarPlans(saved.calendarPlans);
       calendarDone = readCalendarPlans(saved.calendarDone, calendarPlans);
+      studyHistory = readCalendarPlans(saved.studyHistory, null, studyEntries);
       lastSaved = saved.updatedAt;
     }
   } catch (e) {
@@ -166,6 +175,7 @@
       updatedAt: new Date().toISOString(),
       calendarPlans,
       calendarDone,
+      studyHistory,
       items: Object.fromEntries(Object.entries(items).map(([id, v]) => [id, { ...v }])),
     };
   }
@@ -1399,9 +1409,9 @@
       date.getMonth() === month;
       date.setDate(date.getDate() + 1)
     ) {
-      const key = dateKey(date),
-        entries = calendarPlans[key] || [];
-      const count = new Set(entries.map((id) => plannable.get(id).subject.id)).size;
+      const key = dateKey(date);
+      const entries = agendaEntries(key);
+      const count = new Set(entries.map((id) => studyEntries.get(id).subject.id)).size;
       const day = node(
         "button",
         "calendar-day" + (count ? " has-plan" : ""),
@@ -1413,7 +1423,7 @@
         "aria-label",
         dayFormat.format(date) +
           (count
-            ? ", " + count + " " + (count === 1 ? "matéria planejada" : "matérias planejadas")
+            ? ", " + count + " " + (count === 1 ? "matéria na agenda" : "matérias na agenda")
             : ""),
       );
       if (count) {
@@ -1424,10 +1434,9 @@
         day.append(marks);
         day.title = entries
           .map((id) => {
-            const { subject, topic } = plannable.get(id);
-            return topic
-              ? subject.title + " — " + topic.title
-              : subject.title + " (matéria inteira)";
+            const { subject, topic } = studyEntries.get(id);
+            const status = studyHistory[key]?.includes(id) ? " · Estudado" : "";
+            return studyGroup(subject) + (topic ? " — " + topic.title : "") + status;
           })
           .join("\n");
       }
@@ -1440,19 +1449,28 @@
       grid.append(day);
     }
     $("calendar-day-title").textContent = dayFormat.format(calendarDate(selectedCalendarDay));
-    const list = $("calendar-list"),
-      ids = calendarPlans[selectedCalendarDay] || [];
+    const key = selectedCalendarDay;
+    const list = $("calendar-list");
+    const ids = agendaEntries(key);
     list.replaceChildren();
     $("calendar-empty").hidden = ids.length > 0;
     for (const id of ids) {
       const row = node("li");
-      const { subject, topic, title } = plannable.get(id);
+      const { subject, topic, title } = studyEntries.get(id);
+      const recorded = studyHistory[key]?.includes(id);
       const link = node("a", "", title);
-      link.href = "#materias/" + subject.id + (topic ? "/" + topic.id : "");
-      const key = selectedCalendarDay;
+      const section = subject.exam ? "#vestibulares/" + subject.exam : "#materias";
+      link.href = section + "/" + subject.id + (topic ? "/" + topic.id : "");
       const details = node("small");
-      const group = topic ? subject.title : "Matéria inteira · plano anterior";
+      const group = topic || subject.exam ? studyGroup(subject) : "Matéria inteira";
       link.append(details);
+      if (recorded) {
+        row.classList.add("is-done");
+        details.textContent = group + " · Estudado";
+        row.append(link);
+        list.append(row);
+        continue;
+      }
       const check = node("input");
       check.type = "checkbox";
       check.setAttribute("aria-label", "Estudei nesta data: " + title);
@@ -1487,6 +1505,14 @@
       row.append(entry, remove);
       list.append(row);
     }
+  }
+
+  function agendaEntries(key) {
+    return [...new Set([...(calendarPlans[key] || []), ...(studyHistory[key] || [])])];
+  }
+
+  function studyGroup(subject) {
+    return subject.exam ? exams[subject.exam].name + " · " + subject.title : subject.title;
   }
 
   // Mostra os botões + enquanto um dia está sendo planejado.
@@ -1554,7 +1580,7 @@
 
   // Troca a seção exibida conforme o endereço depois de #.
   function changePage() {
-    const [page, chosen, guideTopics] = location.hash.slice(1).split("/");
+    const [page, chosen, guideTopics, examTopic] = location.hash.slice(1).split("/");
     currentPage =
       page === "planejamento"
         ? "calendar"
@@ -1657,6 +1683,14 @@
     if (calendarView || planTarget) {
       $("page-title").focus();
     }
+    if (examView && guideTopics) {
+      const subject = activeSubjects().find((view) => view.s.id === guideTopics);
+      if (subject) {
+        setOpen(subject, true);
+        const topic = subject.topics.find((view) => view.t.id === examTopic);
+        (topic?.row || subject.article).scrollIntoView({ block: "start" });
+      }
+    }
     if (page === "materias" && chosen && !planTarget) {
       const subject = activeSubjects().find((view) => view.s.id === chosen);
       if (subject) {
@@ -1699,6 +1733,15 @@
     if (target.dataset.check) {
       const id = target.dataset.check;
       items[id].studied = target.checked;
+      if (studyEntries.has(id)) {
+        const today = dateKey(new Date());
+        const previous = studyHistory[today] || [];
+        const next = target.checked
+          ? [...new Set([...previous, id])]
+          : previous.filter((entry) => entry !== id);
+        if (next.length) studyHistory[today] = next;
+        else delete studyHistory[today];
+      }
       changed(id);
     } else if (target.dataset.rating) {
       const id = target.dataset.rating;
@@ -1826,6 +1869,9 @@
         data.calendarDone,
         pendingRestore.calendarPlans || {},
       );
+      if (Object.hasOwn(data, "studyHistory")) {
+        pendingRestore.studyHistory = readCalendarPlans(data.studyHistory, null, studyEntries);
+      }
       const checked = values.filter((v) => v.studied).length,
         rated = values.filter((v) => v.stars > 0).length;
       $("restore-summary").textContent =
@@ -1862,6 +1908,7 @@
       calendarPlans = pendingRestore.calendarPlans;
       calendarDone = pendingRestore.calendarDone;
     }
+    if (pendingRestore.studyHistory) studyHistory = pendingRestore.studyHistory;
     refreshCalendar();
     pendingRestore = null;
     $("restore-dialog").close();
@@ -1893,6 +1940,7 @@
       for (const id of records.keys()) paint(id);
       calendarPlans = readCalendarPlans(data.calendarPlans);
       calendarDone = readCalendarPlans(data.calendarDone, calendarPlans);
+      studyHistory = readCalendarPlans(data.studyHistory, null, studyEntries);
       refreshCalendar();
       if (trainingDialog.open) renderTrainingHistory();
       if (overviewDialog.open) renderOverview();

@@ -226,7 +226,7 @@
   }
 
   // Cria o conjunto de cinco estrelas para a autoavaliação.
-  function ratingControl(id) {
+  function ratingControl(id, group = "rating") {
     const outer = node("div", "mastery"),
       label = node("div", "mastery-label");
     label.append(node("span", "", "Meu domínio"));
@@ -242,7 +242,7 @@
       const l = node("label", "star-label"),
         input = node("input");
       input.type = "radio";
-      input.name = "rating-" + id;
+      input.name = group + "-" + id;
       input.value = String(v);
       input.dataset.rating = id;
       input.setAttribute("aria-label", v + (v === 1 ? " estrela" : " estrelas"));
@@ -644,13 +644,8 @@
     const body = node("div", "subject-body");
     body.id = "body-" + s.id;
     body.hidden = true;
-    body.append(
-      node(
-        "p",
-        "body-note",
-        "Marque e avalie os tópicos individualmente. Abra “Ver conteúdos” para marcar, avaliar e priorizar cada item dentro do tópico.",
-      ),
-    );
+    const preface = node("div", "body-preface");
+    body.append(preface);
     const pin = pinControl(s.id);
     head.append(pin);
     const sv = { s, article, body, toggle, sub, open: false, topics: [] };
@@ -758,15 +753,10 @@
     }
     const notes = studyNotes(s.id);
     views.get(s.id).notes = notes;
+    preface.append(notes.details);
     article.append(head, body);
     $("subjects").append(article);
     if (s.exam) {
-      const old = body.firstElementChild,
-        preface = node("div", "body-preface");
-      old.replaceWith(preface);
-      old.textContent =
-        "Avalie seu domínio e use o pin para definir sua prioridade pessoal. O gráfico mostra a base das setas.";
-      preface.append(old);
       const examSubjectId = s.id.split("--")[1];
       const guideId = guideAliases[examSubjectId] || examSubjectId;
       const guideSubject = curriculum.find(
@@ -778,13 +768,6 @@
         preface.append(link);
       }
       preface.append(chartDetails(s));
-    }
-    const preface = body.firstElementChild;
-    if (preface.classList.contains("body-preface")) preface.prepend(notes.details);
-    else {
-      const wrapper = node("div", "body-preface");
-      preface.replaceWith(wrapper);
-      wrapper.append(preface, notes.details);
     }
   }
   for (const sv of subjects)
@@ -971,14 +954,9 @@
   function ensureContents(tv) {
     if (tv.rendered || !tv.t.contents) return;
     tv.rendered = true;
-    const note = node(
-        "p",
-        "content-note",
-        "Avalie cada conteúdo separadamente. Marcar o tópico principal não marca esta lista; cada nível tem sua própria avaliação.",
-      ),
-      list = node("div", "content-list");
+    const list = node("div", "content-list");
     tv.list = list;
-    tv.details.append(note, list);
+    tv.details.append(list);
     for (const c of tv.t.contents) {
       const row = node("section", "content-item"),
         info = node("div", "content-info"),
@@ -1165,6 +1143,8 @@
     updateReviewCards();
     updateDashboard();
     contentStats();
+    if (currentPage === "overview") renderSubjectCards();
+    if (currentSubjectSpace) renderSubjectSpace(currentSubjectSpace);
     const sectionList = currentSections();
     let sc = 0,
       tc = 0,
@@ -1586,11 +1566,381 @@
     location.hash = "planejamento/" + planTarget;
   });
 
+  const themeSwitch = $("theme-switch");
+  themeSwitch.setAttribute("aria-checked", String(document.documentElement.dataset.theme === "dark"));
+  themeSwitch.addEventListener("click", () => {
+    const dark = themeSwitch.getAttribute("aria-checked") !== "true";
+    document.documentElement.dataset.theme = dark ? "dark" : "light";
+    themeSwitch.setAttribute("aria-checked", String(dark));
+    try { localStorage.setItem("atlas-theme", document.documentElement.dataset.theme); } catch {}
+  });
+
+  const sidebar = $("atlas-sidebar");
+  const sidebarTrigger = $("open-sidebar");
+  function setSidebarOpen(open) {
+    sidebar.inert = !open;
+    document.body.classList.toggle("atlas-menu-open", open);
+    sidebarTrigger.setAttribute("aria-expanded", String(open));
+    sidebarTrigger.setAttribute("aria-label", open ? "Fechar menu lateral" : "Abrir menu lateral");
+    sidebarTrigger.firstElementChild.textContent = open ? "\u2039" : "\u203a";
+    $("sidebar-brand").setAttribute("aria-expanded", String(open));
+    $("sidebar-brand").setAttribute("aria-label", "Atlas de Estudos, " + (open ? "fechar" : "abrir") + " menu lateral");
+    if (open) $("sidebar-study").focus({ preventScroll: true });
+    else sidebarTrigger.focus({ preventScroll: true });
+  }
+  $("sidebar-brand").addEventListener("click", () => setSidebarOpen(sidebar.inert));
+  sidebarTrigger.addEventListener("click", () => setSidebarOpen(sidebar.inert));
+  $("sidebar-scrim").addEventListener("click", () => setSidebarOpen(false));
+  sidebar.querySelectorAll(".sidebar-nav a").forEach((link) => {
+    link.addEventListener("click", () => {
+      if (matchMedia("(max-width: 760px)").matches) setSidebarOpen(false);
+    });
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && !sidebar.inert && !document.querySelector("dialog[open]")) {
+      setSidebarOpen(false);
+    }
+  });
+  $("sidebar-login").addEventListener("click", () => {
+    $("sidebar-login-status").textContent = "Em breve";
+  });
+
+  const overviewSubjects = new Map(
+    curriculum.filter(isVisibleSubject).map((subject) => [subject.id, subject]),
+  );
+  const subjectIcons = {
+    matematica: "∑",
+    fisica: "⚛︎",
+    quimica: "⚗︎",
+    biologia: "☘︎",
+    geografia: "◎",
+    historia: "◷",
+    "portugues-gramatica-e-analise-linguistica": "Aa",
+    literatura: "❧",
+    "portugues-interpretacao-e-generos-textuais": "¶",
+    ingles: "EN",
+    filosofia: "◈",
+    sociologia: "⁙",
+  };
+  let currentSubjectSpace = null;
+
+  // Ilustrações em uma grade de 64 × 64 para manter a escala consistente entre os cards.
+  const subjectCardArt = {
+    matematica: ["#e5efd2", "#315d3b", "M46 15H19l13 17-13 17h27M46 15v7m0 20v7"],
+    fisica: ["#daeaf0", "#21556b", "M54 32a22 9 0 1 0-44 0 22 9 0 1 0 44 0M43 51a22 9 60 1 0-22-38 22 9 60 1 0 22 38M21 51a22 9 -60 1 0 22-38 22 9 -60 1 0-22 38M34 32a2 2 0 1 0-4 0 2 2 0 1 0 4 0"],
+    quimica: ["#eee2f3", "#624478", "M24 11h16m-13 0v15L13 48q-3 6 4 6h30q7 0 4-6L37 26V11M20 40h24m-17 6h1m10 3h1"],
+    biologia: ["#dbeddb", "#24644b", "M14 50c2-24 16-40 39-39-1 25-15 42-36 35M14 50l28-28M23 40v-9m7 2h11"],
+    geografia: ["#dbece6", "#28685e", "M53 32a21 21 0 1 0-42 0 21 21 0 1 0 42 0M32 11c-13 10-13 32 0 42m0-42c13 10 13 32 0 42M11 32h42M17 20c9 5 21 5 30 0M17 44c9-5 21-5 30 0"],
+    historia: ["#f2e5cf", "#805928", "M13 24l19-12 19 12H13Zm4 28h30M13 56h38M19 29v19m9-19v19m8-19v19m9-19v19"],
+    "portugues-gramatica-e-analise-linguistica": ["#f1e6c4", "#715620", "M10 48l11-29 11 29m-18-9h14m27-10v19m0-9a9 9 0 1 0-18 0 9 9 0 1 0 18 0"],
+    literatura: ["#f0dde5", "#87496a", "M32 53c-7-5-14-7-23-5V16c8-2 15 0 23 6 8-6 15-8 23-6v32c-9-2-16 0-23 5Zm0-31v31M15 24c4 0 7 1 11 3m-11 6c4 0 7 1 11 3m12-9c4-2 7-3 11-3m-11 12c4-2 7-3 11-3"],
+    "portugues-interpretacao-e-generos-textuais": ["#e5e7f5", "#505888", "M14 12h27l9 9v28H14V12Zm26 0v10h10M21 26h13m-13 8h22m-22 8h17"],
+    ingles: ["#dcecf6", "#2e5c7c", "M11 15h42v29H31L20 53v-9h-9V15Zm14 10h-7v10h7m-7-5h5m8 5V25l8 10V25m7 10h1"],
+    filosofia: ["#efe1d4", "#814c32", "M24 48h16m-12 6h8m-12-11v-4a16 16 0 1 1 16 0v4M32 9V5M13 17l-4-4m42 4 4-4M12 29H6m46 0h6M26 28l6 7 6-7m-6 7v8"],
+    sociologia: ["#e0ebdc", "#47694a", "M39 21a7 7 0 1 0-14 0 7 7 0 1 0 14 0M19 47v-6a13 13 0 0 1 26 0v6H19Zm1-26a5 5 0 1 0-5 5m34 0a5 5 0 1 0-5-5M8 44v-6a9 9 0 0 1 9-9m39 15v-6a9 9 0 0 0-9-9"],
+  };
+
+  // Pranchas de caderno: cada camada tem desenho e movimento independentes.
+  const plates = {
+    matematica: ["M8 47H54M18 55V9M13 15Q31 76 51 15", "M10 49L49 12v37ZM27 43l16-16v16Z", "f(x)", "π"],
+    fisica: ["M9 12h45M19 12l14 29m-14-29v28M38 45a6 6 0 1 0-12 0 6 6 0 1 0 12 0", "M4 34q7-29 14 0t14 0t14 0t14 0", "λ", "Δt"],
+    quimica: ["M8 24l12-7 12 7v15l-12 7-12-7Zm24 0 12-7 12 7v15l-12 7-12-7M13 27v9m31-14 8 5", "M18 9l-4 40q0 12 10 8l6-48m-14 28h10M16 9h17", "OH", "H₂O"],
+    biologia: ["M15 6c0 22 34 28 34 52M49 6c0 22-34 28-34 52M18 14h28M24 21h16m-14 22h12m-19 8h26", "M6 48q20-42 52-39Q49 45 6 48Zm0 0 39-29m-23 19 2-14m6 9 14-2", "DNA", "5′"],
+    geografia: ["M3 51l18-28 9 12 10-23 21 39ZM15 32l6 2 4-4m9-5 7 2 4-5", "M32 5l8 22 18 5-22 8-4 19-7-23-19-4 22-7Z", "N", "23° S"],
+    historia: ["M10 49h44M14 43h36M18 38h28M22 33h20M26 28h12M8 50l23-36 25 36", "M13 12q5-7 10 0v36q-5 9-10 0Zm10 1h28v34H23m7-24h14m-14 9h11", "XIV", "a.C."],
+    literatura: ["M8 55q14-32 47-47-2 26-35 36m-12 11 36-36m-18 20 0-9", "M11 48q11-6 21 1 10-7 22-1V18q-12-4-22 4-10-8-21-4Zm21-26v27", "«", "»"],
+    ingles: ["M8 11h47v28H29L16 50V39H8Z", "M12 18h36v24H36l-3 9-8-9H12Z", "Hi!", "Hey"],
+    filosofia: ["M10 50h44M32 12v38m-23-29 46-6M14 21l-8 16h16Zm35-4-8 16h16Z", "M20 52v-8q-13-8-8-24 7-21 28-12 10 4 10 17l6 10h-8v9H33v8", "?", "∴"],
+    sociologia: ["M11 18l21 12 21-16M32 30l14 20m-14-20L12 49m-1-31 1 31 34 1 7-36", "M7 50V37h10v13m6 0V25h10v25m6 0V12h10v38M4 54h52", "n", "%"],
+    "portugues-gramatica-e-analise-linguistica": ["M32 9v13M10 35V23h44v12M5 42h12m9 0h12m10 0h12m-28-19v12", "M8 46l28-28 9 9-28 28-12 3Zm28-28 6-7 10 10-7 6", "Aa", "V"],
+    "portugues-interpretacao-e-generos-textuais": ["M9 12h44v36H29l-13 9v-9H9Zm7 11h29m-29 9h19", "M36 29a13 13 0 1 0-26 0 13 13 0 1 0 26 0m-4 10 17 17", "¶", "“”"]
+  };
+
+  // Uma semente por matéria mantém a composição estável entre visitas.
+  function illustrateSubject(host, subject, backdrop = false) {
+    let seed = Array.from(subject.id).reduce((n, ch) => Math.imul(n, 31) + ch.charCodeAt(0) | 0, backdrop ? 73 : 11);
+    function random() {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 4294967296;
+    }
+    const [paper, ink, main] = subjectCardArt[subject.id];
+    const [left, right, a, b] = plates[subject.id];
+    const motifs = [main, left, right, a, b];
+    const count = backdrop ? 44 : 5 + Math.floor(random() * 4);
+    const points = [];
+    host.style.setProperty("--card-paper", paper);
+    host.style.setProperty("--card-ink", ink);
+    for (let i = 0; i < count; i++) {
+      // Escolhe entre posições livres para espalhar os traços sem formar uma grade.
+      let point, best = -1;
+      for (let attempt = 0; attempt < 16; attempt++) {
+        const x = i === 0 && !backdrop ? 30 + random() * 40 : 4 + random() * 92;
+        const y = i === 0 && !backdrop ? 35 + random() * 26 : 6 + random() * 86;
+        const distance = points.reduce((min, p) => Math.min(min, Math.hypot((x-p.x)*1.65, y-p.y)), Infinity);
+        if (distance > best) { point = {x, y}; best = distance; }
+      }
+      points.push(point);
+      const kind = i < 5 ? i : Math.floor(random() * motifs.length);
+      const glyph = node("canvas", "atlas-glyph");
+      glyph.width = glyph.height = 192;
+      const ctx = glyph.getContext("2d");
+      ctx.scale(3, 3);
+      ctx.strokeStyle = ctx.fillStyle = ink;
+      ctx.lineWidth = i === 0 ? 2.6 : 2;
+      ctx.lineCap = ctx.lineJoin = "round";
+      if (kind < 3) {
+        ctx.stroke(new Path2D(motifs[kind]));
+      } else {
+        ctx.font = "italic bold 28px Georgia";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(motifs[kind], 32, 32, 61);
+      }
+      glyph.style.left = point.x + "%";
+      glyph.style.top = point.y + "%";
+      glyph.style.width = backdrop ? (24 + random()*105) + "px" : (i === 0 ? 38 : 10 + random()*15) + "%";
+      glyph.style.setProperty("--angle", (random()*52-26) + "deg");
+      glyph.style.setProperty("--spin", (random() > .5 ? 1 : -1)*(12+random()*30) + "deg");
+      glyph.style.setProperty("--pace", (1.4+random()*1.3) + "s");
+      glyph.style.opacity = backdrop ? .13 + random()*.22 : i === 0 ? 1 : .56 + random()*.4;
+      if (backdrop && i % 3 === 0) {
+        glyph.classList.add("ambient-glyph");
+        glyph.style.setProperty("--drift-x", ((random() < .5 ? -1 : 1) * (15 + random() * 15)) + "px");
+        glyph.style.setProperty("--drift-y", ((random() < .5 ? -1 : 1) * (9 + random() * 13)) + "px");
+        glyph.style.setProperty("--drift-time", (7 + random() * 4) + "s");
+        glyph.style.setProperty("--drift-delay", (-random() * 10) + "s");
+      }
+      host.append(glyph);
+    }
+  }
+  function subjectIcon(subject) {
+    const icon = node("span", "subject-space-icon", subjectIcons[subject.id] || subject.title[0]);
+    icon.setAttribute("aria-hidden", "true");
+    return icon;
+  }
+
+  function subjectProgress(subject) {
+    const studied = subject.topics.filter((topic) => items[topic.id].studied).length;
+    const total = subject.topics.length;
+    const percent = total ? Math.round((100 * studied) / total) : 0;
+    return { studied, total, percent };
+  }
+
+  function renderSubjectCards() {
+    const grid = $("overview-grid");
+    grid.replaceChildren();
+    for (const subject of overviewSubjects.values()) {
+      const { studied, total } = subjectProgress(subject);
+      const card = node("a", "overview-card");
+      card.href = "#visao-geral/" + subject.id;
+      const colors = subjectCardArt[subject.id];
+      const art = node("div", "overview-card-art");
+      art.setAttribute("aria-hidden", "true");
+      if (colors) {
+        const [paper, ink] = colors;
+        card.style.setProperty("--card-paper", paper);
+        card.style.setProperty("--card-ink", ink);
+        illustrateSubject(art, subject);
+      } else {
+        art.append(subjectIcon(subject));
+      }
+      card.append(art, node("h3", "", subject.title));
+      if (total > 0 && studied === total) {
+        const check = node("span", "overview-card-done", "✓");
+        check.setAttribute("aria-hidden", "true");
+        card.append(check, node("span", "sr-only", "Concluída"));
+      }
+      grid.append(card);
+    }
+  }
+
+  function renderSubjectSpace(subject) {
+    const space = $("subject-space");
+    space.replaceChildren();
+    if (plates[subject.id]) {
+      const border = node("div", "subject-illustrated-border");
+      border.setAttribute("aria-hidden", "true");
+      illustrateSubject(border, subject, true);
+      space.append(border);
+    }
+    const { studied, total, percent } = subjectProgress(subject);
+    const back = node("a", "subject-space-back", "‹ Visão geral");
+    back.href = "#visao-geral";
+    const open = node("a", "btn subject-space-open", "Abrir no espaço de estudo");
+    open.href = "#materias/" + subject.id;
+    const actions = node("div", "subject-space-actions");
+    actions.append(back, open);
+
+    const ring = $("subject-space-ring");
+    ring.textContent = percent + "%";
+    ring.style.setProperty("--study-percent", percent + "%");
+    $("subject-space-count").textContent = studied + " de " + total + " tópicos estudados";
+
+    const grid = node("div", "subject-topic-grid");
+    for (const topic of subject.topics) {
+      const card = node("button", "subject-topic-card");
+      const status = items[topic.id];
+      card.type = "button";
+      card.dataset.topic = topic.id;
+      card.setAttribute("aria-haspopup", "dialog");
+      card.append(node("span", "", topic.title));
+      if (status.studied) {
+        const check = node("span", "subject-topic-check", "✓");
+        check.setAttribute("aria-hidden", "true");
+        card.append(check, node("span", "sr-only", "Estudado"));
+      }
+      card.addEventListener("click", () => showSubjectTopic(subject, topic));
+      grid.append(card);
+    }
+    space.append(actions, grid);
+
+    const recent = subject.topics.flatMap((topic) =>
+      (items[topic.id].training || []).map((entry) => ({ topic, entry })),
+    ).sort((a, b) => Date.parse(b.entry.date) - Date.parse(a.entry.date)).slice(0, 7).reverse();
+    if (recent.length) {
+      const chart = node("details", "subject-space-chart");
+      chart.append(node("summary", "", "Desempenho nos treinos"));
+      const bars = node("div", "subject-training-bars");
+      const result = node("p", "subject-training-result");
+      result.setAttribute("aria-live", "polite");
+      function selectTraining(index) {
+        for (const [position, button] of [...bars.children].entries()) {
+          button.setAttribute("aria-pressed", String(index === position));
+        }
+        const { topic, entry } = recent[index];
+        result.textContent = topic.title + " · " + trainingDate.format(new Date(entry.date)) + " · " + trainingScore(entry);
+      }
+      for (const [index, { topic, entry }] of recent.entries()) {
+        const score = Math.round((100 * entry.correct) / entry.attempted);
+        const button = node("button", "subject-training-bar");
+        button.type = "button";
+        button.setAttribute("aria-label", topic.title + " · " + trainingScore(entry));
+        const bar = node("span", "subject-training-fill");
+        bar.style.setProperty("--score", score + "%");
+        button.append(bar, node("span", "subject-training-label", score + "%"));
+        button.addEventListener("click", () => selectTraining(index));
+        bars.append(button);
+      }
+      chart.append(bars, result);
+      selectTraining(recent.length - 1);
+      space.append(chart);
+    }
+  }
+
+  const subjectTopicDialog = $("subject-topic-dialog");
+  const incidenceFormat = new Intl.NumberFormat("pt-BR", {
+    style: "percent",
+    maximumFractionDigits: 1,
+  });
+
+  function compactStars(value) {
+    const rating = node("span", "subject-topic-stars");
+    rating.setAttribute("role", "img");
+    rating.setAttribute("aria-label", value ? value + " de 5 estrelas" : "Ainda sem avaliação");
+    const filled = node("strong", "", "★".repeat(value));
+    const empty = node("span", "", "☆".repeat(5 - value));
+    rating.append(filled, empty);
+    return rating;
+  }
+
+  function rankTopicIncidence(topicId) {
+    const ranking = [];
+    for (const [key, exam] of Object.entries(exams)) {
+      // O TJSP ocupa uma seção separada no guia de estudos.
+      if (key === "tjsp") continue;
+      let count = 0;
+      let total = 0;
+      let primary = null;
+      for (const subject of exam.subjects) {
+        const matches = subject.topics.filter((topic) => topic.guideTopics?.includes(topicId));
+        if (!matches.length || !subject.total) continue;
+        total += subject.total;
+        for (const topic of matches) {
+          count += topic.count;
+          if (!primary || topic.count > primary.topic.count) primary = { subject, topic };
+        }
+      }
+      const share = count > 0 && total > 0 ? count / total : null;
+      ranking.push({ key, name: exam.name, count, total, primary, share });
+    }
+    return ranking.sort(
+      (a, b) => (b.share ?? -1) - (a.share ?? -1) || a.name.localeCompare(b.name, "pt-BR"),
+    );
+  }
+
+  function showSubjectTopic(subject, topic) {
+    const entry = items[topic.id];
+    $("subject-topic-title").textContent = topic.title;
+    $("subject-topic-status").textContent = entry.studied ? "Estudado" : "A estudar";
+    $("subject-topic-mastery").replaceChildren(compactStars(entry.stars));
+    $("subject-topic-level").textContent = names[topic.level];
+    const contents = $("subject-topic-contents");
+    contents.replaceChildren();
+    for (const content of topic.contents || []) {
+      const row = node("li");
+      const rating = ratingControl(content.id, "overview-rating");
+      const field = rating.radios[0].closest("fieldset");
+      function displayRating() {
+        const stars = items[content.id].stars;
+        rating.radios.forEach((radio, i) => {
+          radio.checked = stars === i + 1;
+          rating.labels[i].classList.toggle("on", i < stars);
+        });
+      }
+      field.addEventListener("change", event => {
+        items[content.id].stars = Number(event.target.value);
+        displayRating();
+        changed(content.id);
+      });
+      displayRating();
+      row.append(node("span", "", content.title), field);
+      contents.append(row);
+    }
+
+    const ranking = rankTopicIncidence(topic.id);
+    const highlights = $("subject-topic-highlights");
+    highlights.textContent = ranking.filter(result => result.share !== null).slice(0, 3)
+      .map(result => result.name + " " + incidenceFormat.format(result.share)).join(" \u00b7 ");
+    highlights.hidden = !highlights.textContent;
+    const list = $("subject-topic-ranking");
+    list.replaceChildren();
+    for (const result of ranking) {
+      const row = node("li");
+      if (result.share === null) {
+        row.append(
+          node("span", "", result.name),
+          node("small", "", "Sem registro de incidência"),
+        );
+        list.append(row);
+        continue;
+      }
+      const link = node("a", "", result.name);
+      const { subject: examSubject, topic: examTopic } = result.primary;
+      link.href = "#vestibulares/" + result.key + "/" + examSubject.id + "/" + examTopic.id;
+      const percent = node("strong", "", incidenceFormat.format(result.share));
+      const count = node("small", "", result.count + " de " + result.total + " questões");
+      row.append(link, percent, count);
+      list.append(row);
+    }
+    $("subject-topic-ranking-note").textContent =
+      "Estimativa por disciplina na base de cada prova. Uma categoria pode cobrir vários tópicos.";
+    $("subject-topic-open").href = "#materias/" + subject.id + "/" + topic.id;
+    subjectTopicDialog.showModal();
+  }
+  $("subject-topic-open").addEventListener("click", () => subjectTopicDialog.close());
+  $("subject-topic-ranking").addEventListener("click", (event) => {
+    if (event.target.closest("a")) subjectTopicDialog.close();
+  });
+
   // Troca a seção exibida conforme o endereço depois de #.
   function changePage() {
     const [page, chosen, guideTopics, examTopic] = location.hash.slice(1).split("/");
+    const subjectSpace = page === "visao-geral" ? overviewSubjects.get(chosen) : null;
+    currentSubjectSpace = subjectSpace;
     currentPage =
-      page === "planejamento"
+      page === "visao-geral"
+        ? (subjectSpace ? "subject-space" : "overview")
+        : page === "planejamento"
         ? "calendar"
         : page === "pendentes"
           ? "pending"
@@ -1604,12 +1954,25 @@
     }
     const pending = currentPage === "pending",
       examView = currentPage === "exams",
-      calendarView = currentPage === "calendar";
+      calendarView = currentPage === "calendar",
+      overviewView = currentPage === "overview";
     planTarget =
       page === "materias" && chosen === "planejar" && calendarDate(guideTopics)
         ? guideTopics
         : null;
     document.body.classList.toggle("plan-page", calendarView);
+    document.body.classList.toggle("atlas-overview-page", overviewView || Boolean(subjectSpace));
+    document.body.classList.toggle("atlas-subject-page", Boolean(subjectSpace));
+    $("overview-subjects").hidden = !overviewView;
+    $("subject-space").hidden = !subjectSpace;
+    $("subject-space-ring").hidden = !subjectSpace;
+    $("subject-space-count").hidden = !subjectSpace;
+    if (subjectTopicDialog.open) subjectTopicDialog.close();
+    const activeLink = overviewView || subjectSpace ? "sidebar-overview" : "sidebar-study";
+    for (const id of ["sidebar-study", "sidebar-overview"]) {
+      if (id === activeLink) $(id).setAttribute("aria-current", "page");
+      else $(id).removeAttribute("aria-current");
+    }
     $("calendar-panel").hidden = !calendarView;
     $("calendar-banner").hidden = !planTarget;
     if (calendarView) {
@@ -1629,20 +1992,17 @@
       if (on) $(id).setAttribute("aria-current", "page");
       else $(id).removeAttribute("aria-current");
     }
-    $("page-title").textContent = calendarView
+    $("page-title").textContent = subjectSpace
+      ? "Espaço de " + subjectSpace.title
+      : overviewView
+      ? "Visão geral"
+      : calendarView
       ? "Planejamento"
       : pending
         ? "Pendentes"
         : examView
           ? "Estude por vestibular"
           : "Minhas matérias";
-    $("page-description").textContent = calendarView
-      ? "Escolha um dia e organize os tópicos que quer estudar."
-      : pending
-        ? "Escolha o guia completo ou uma revisão de vestibular para ver o que falta estudar. Os itens priorizados aparecem primeiro. Marcar uma matéria retira o cartão desta lista."
-        : examView
-          ? "Escolha a banca e abra uma disciplina para ver seu gráfico, a fonte e os assuntos. Use as setas para orientar seu foco."
-          : "Matérias, tópicos e conteúdos: acompanhe seu progresso do geral ao detalhe. Abra um tópico para avaliar cada conteúdo.";
     $("plan-options").hidden = !pending;
     $("pending-scope-wrap").hidden = !pending;
     $("exam-section").hidden = !examView;
@@ -1688,7 +2048,7 @@
     $("filter").value = "all";
     stats();
     filter();
-    if (calendarView || planTarget) {
+    if (calendarView || overviewView || subjectSpace || planTarget) {
       $("page-title").focus();
     }
     if (examView && guideTopics) {
@@ -1970,4 +2330,28 @@
     filter();
     refreshCalendar();
   });
-})();
+  // O trilho acompanha os painéis mesmo quando eles passam a ocupar duas linhas.
+  const hero = document.querySelector("header.hero");
+  const sky = hero.querySelector(".atlas-sky");
+  const dashboard = hero.querySelector(".exam-dashboard");
+  const legend = hero.querySelector(".legend");
+  function positionSky() {
+    const bounds = hero.getBoundingClientRect();
+    if (!bounds.width || !bounds.height) return;
+    const panel = dashboard.getBoundingClientRect();
+    const note = legend.getBoundingClientRect();
+    const points = [
+      [Math.max(9, note.left - bounds.left - 20), Math.min(bounds.height - 9, note.bottom - bounds.top + 8)],
+      [bounds.width * .43, Math.max(16, bounds.height * .075)],
+      [panel.left - bounds.left + 18, panel.bottom - bounds.top - 12],
+      [Math.min(panel.right - bounds.left, bounds.width - 39), Math.max(38, panel.top - bounds.top - 30)],
+    ];
+    sky.setAttribute("viewBox", [0, 0, bounds.width, bounds.height].join(" "));
+    sky.querySelectorAll(".sky-line").forEach((line, i) => {
+      line.setAttribute("d", "M" + points[i].join(" ") + " L" + points[i + 1].join(" "));
+    });
+    sky.querySelector(".sky-destination").setAttribute("transform", "translate(" + points[3].join(" ") + ")");
+  }
+  positionSky();
+  const skyObserver = new ResizeObserver(positionSky);
+  [hero, dashboard, legend].forEach(element => skyObserver.observe(element));})();

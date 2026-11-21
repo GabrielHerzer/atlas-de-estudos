@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# As mensagens de merge são geradas pelo Git.
+if git rev-parse -q --verify MERGE_HEAD >/dev/null; then
+    exit 0
+fi
+
+for python_command in python3 python; do
+    if "$python_command" --version >/dev/null 2>&1; then
+        exec "$python_command" scripts/verificar_commits.py mensagem "$1"
+    fi
+done
+
+echo "Instale o Python 3 para validar a mensagem do commit." >&2
+exit 1

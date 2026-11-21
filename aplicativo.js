@@ -34,7 +34,8 @@
     pendingScope = "general";
 
   // Chave usada para guardar o progresso neste navegador.
-  const KEY = "atlas-estudos-checklist-v1";
+  const syncDemo = window.atlasSyncDemo;
+  const KEY = "atlas-estudos-checklist-v1" + (syncDemo ? "-" + syncDemo.device : "");
   const $ = (id) => document.getElementById(id);
   const records = new Map(),
     views = new Map(),
@@ -1515,6 +1516,13 @@
     return subject.exam ? exams[subject.exam].name + " · " + subject.title : subject.title;
   }
 
+  function recordStudy(id, day, studied) {
+    const previous = studyHistory[day] || [];
+    const next = studied ? [...new Set([...previous, id])] : previous.filter((entry) => entry !== id);
+    if (next.length) studyHistory[day] = next;
+    else delete studyHistory[day];
+  }
+
   // Mostra os botões + enquanto um dia está sendo planejado.
   function renderPlanButtons() {
     const planned = new Set(calendarPlans[planTarget] || []);
@@ -1735,12 +1743,8 @@
       items[id].studied = target.checked;
       if (studyEntries.has(id)) {
         const today = dateKey(new Date());
-        const previous = studyHistory[today] || [];
-        const next = target.checked
-          ? [...new Set([...previous, id])]
-          : previous.filter((entry) => entry !== id);
-        if (next.length) studyHistory[today] = next;
-        else delete studyHistory[today];
+        recordStudy(id, today, target.checked);
+        syncDemo?.enqueue({ id, day: today, studied: target.checked });
       }
       changed(id);
     } else if (target.dataset.rating) {
@@ -1954,4 +1958,16 @@
   changePage();
   if (lastSaved) $("save-status").textContent = "Progresso recuperado deste navegador";
   if (!storageOK) $("save-status").textContent = "Salve um backup antes de fechar";
+  syncDemo?.start((changes) => {
+    for (const { id, day, studied } of changes) {
+      if (!studyEntries.has(id) || !calendarDate(day) || typeof studied !== "boolean") continue;
+      items[id].studied = studied;
+      recordStudy(id, day, studied);
+      paint(id);
+    }
+    save();
+    stats();
+    filter();
+    refreshCalendar();
+  });
 })();

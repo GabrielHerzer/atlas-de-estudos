@@ -1,5 +1,7 @@
 # Atlas de Estudos
 
+[**Acessar o Atlas de Estudos**](https://gabrielherzer.github.io/atlas-de-estudos/)
+
 Veja o [guia de contribuição](CONTRIBUTING.md) para criar branches, escrever commits e abrir pull requests.
 
 Abra **index.html** no navegador para usar o Atlas. Todos os arquivos desta pasta precisam ficar juntos, incluindo a pasta **dados**. O funcionamento é offline, com acesso à internet necessário para abrir as fontes e provas externas.

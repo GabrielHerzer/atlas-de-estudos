@@ -43,14 +43,37 @@ O arquivo **atlas.py** contém o registro de sessões e tempo de estudo por mat�
 
 ## Funcionalidades e prioridades
 
-A tabela apresenta as prioridades propostas para o desenvolvimento do Atlas.
+Roteiro proposto para evoluir o Atlas a partir do catálogo, do progresso local e da hospedagem estática já existentes. As fases indicam a ordem de entrega. **P0** é essencial para o piloto, **P1** vem logo após o piloto, **P2** depende dos resultados ou da infraestrutura e **P3** fica para expansão.
 
-| Funcionalidade | Impacto | Dificuldade | Quando e por quê |
-| --- | --- | --- | --- |
-| Catálogo e filtros por prova | Alto | Média | MVP. Entrega o mapa e permite comparar provas. |
-| Progresso por tópico | Alto | Baixa | MVP. Dá motivo para voltar e continuar o estudo. |
-| Incidência com fontes | Alto | Alta | MVP com recorte pequeno. A classificação manual exige consistência. Ampliar após o piloto. |
-| Pré-requisitos | Alto | Média no recorte | Após o piloto. Validar relações na ficha do tópico antes de desenhar um grafo inteiro. |
-| Sugestão de revisão e retenção | Médio | Média para regras simples | Após registrar revisões. Medir se a sugestão ajuda a recordar o conteúdo. |
-| Planejador de estudos com IA | Alto potencial | Alta | Depois das regras de prioridade. Depende da qualidade dos dados e das restrições de agenda. |
-| Questões, simulados e materiais | Médio no início | Alta | Mais adiante. Testar primeiro links para materiais e questões já disponíveis. |
+**Pontos** estimam esforço relativo de implementação, curadoria e validação. A escala é 1 e 2 para dificuldade baixa, 3 e 5 para média, 8 para alta e 13 para muito alta. Itens de 13 pontos devem ser divididos antes da execução.
+
+### Produto e experiência de estudo
+
+| Funcionalidade | Impacto | Dificuldade | Quando entregar | Pontos | Prioridade |
+| --- | --- | --- | --- | ---: | --- |
+| Catálogo e filtros por vestibular | Alto | Média | MVP. Revisar o recorte de Matemática para ENEM e Fuvest e testar filtros e busca. | 5 | P0 |
+| Progresso por tópico | Alto | Baixa | MVP. Conferir persistência no navegador e preservar marcações ao trocar de prova. | 2 | P0 |
+| Incidência com fontes | Alto | Alta | MVP. Mostrar edição, fase, fonte e cobertura da amostra para um recorte pequeno. | 8 | P0 |
+| Piloto e feedback | Alto | Baixa | Fechamento do MVP. Testar com cinco estudantes durante sete dias. | 2 | P0 |
+| Árvore de pré-requisitos | Alto | Média | Após o piloto. Validar um ramo na ficha do tópico e depois criar a visualização. | 5 | P1 |
+| Revisões e estimativa de retenção | Médio | Média | Após registrar revisões e acertos. Começar com intervalos simples e faixas de revisão. | 5 | P1 |
+| Planejador de estudos por regras | Alto | Média | Após validar prioridades e pré-requisitos. Gerar uma agenda editável que caiba no tempo disponível. | 5 | P1 |
+| Conta e sincronização de progresso | Alto | Alta | Beta online, após validar a demanda e preparar API, banco e autenticação. Preservar os registros locais na primeira sincronização. | 8 | P2 |
+| Planejador de estudos com IA | Alto potencial | Alta | Após validar o plano por regras. Oferecer ajustes sob demanda e conferir se cabem na agenda. | 8 | P2 |
+| Banco de questões | Alto potencial | Muito alta | Expansão. Começar com links e gabaritos verificados e ampliar a classificação por tópico. | 13 | P3 |
+| Simulados cronometrados | Médio | Alta | Expansão, após organizar questões e gabaritos do primeiro vestibular. | 8 | P3 |
+| Resumos e materiais por tópico | Médio | Média | Expansão. Associar links e resumos aos tópicos antes de testar armazenamento de anexos. | 5 | P3 |
+
+### Infraestrutura e operação
+
+| Funcionalidade | Impacto | Dificuldade | Quando entregar | Pontos | Prioridade |
+| --- | --- | --- | --- | ---: | --- |
+| Hospedagem da versão estática | Alto | Baixa | MVP. Manter o GitHub Pages e conferir o acesso no celular e os caminhos dos arquivos. | 2 | P0 |
+| CI e publicação | Alto | Média | MVP. Ampliar as verificações para validar dados do catálogo e links internos antes de publicar. | 3 | P0 |
+| Servidor e API | Alto | Alta | Beta online, quando houver demanda por conta e sincronização. Subir primeiro em homologação. | 8 | P2 |
+| Banco de dados relacional | Alto | Alta | Beta online, junto com a API. Versionar o esquema e testar a migração dos registros existentes. | 8 | P2 |
+| Autenticação e controle de acesso | Alto | Alta | Beta online, antes de sincronizar dados reais. Verificar o isolamento dos dados por conta. | 8 | P2 |
+| Docker e Docker Compose | Médio | Média | Beta online. Reproduzir API e banco no ambiente local antes de publicar o backend. | 5 | P2 |
+| Backups e restauração | Alto | Média | Beta online, antes de receber dados reais. Testar restauração do banco em homologação. | 5 | P2 |
+| Logs e monitoramento | Médio | Média | Beta online, junto com a publicação da API. Acompanhar disponibilidade e erros. | 3 | P2 |
+| Domínio próprio, DNS e HTTPS | Médio | Baixa | Beta público. Configurar o endereço quando a publicação estiver estável e o domínio for escolhido. | 2 | P2 |

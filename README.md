@@ -40,3 +40,17 @@ Esta pasta é uma versão editável independente. As alterações feitas aqui s�
 ## Registro de sessões em Python
 
 O arquivo **atlas.py** contém o registro de sessões e tempo de estudo por matéria.
+
+## Funcionalidades e prioridades
+
+A tabela apresenta as prioridades propostas para o desenvolvimento do Atlas.
+
+| Funcionalidade | Impacto | Dificuldade | Quando e por quê |
+| --- | --- | --- | --- |
+| Catálogo e filtros por prova | Alto | Média | MVP. Entrega o mapa e permite comparar provas. |
+| Progresso por tópico | Alto | Baixa | MVP. Dá motivo para voltar e continuar o estudo. |
+| Incidência com fontes | Alto | Alta | MVP com recorte pequeno. A classificação manual exige consistência. Ampliar após o piloto. |
+| Pré-requisitos | Alto | Média no recorte | Após o piloto. Validar relações na ficha do tópico antes de desenhar um grafo inteiro. |
+| Sugestão de revisão e retenção | Médio | Média para regras simples | Após registrar revisões. Medir se a sugestão ajuda a recordar o conteúdo. |
+| Planejador de estudos com IA | Alto potencial | Alta | Depois das regras de prioridade. Depende da qualidade dos dados e das restrições de agenda. |
+| Questões, simulados e materiais | Médio no início | Alta | Mais adiante. Testar primeiro links para materiais e questões já disponíveis. |

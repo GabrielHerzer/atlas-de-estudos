@@ -35,7 +35,9 @@
 
   // Chave usada para guardar o progresso neste navegador.
   const syncDemo = window.atlasSyncDemo;
-  const KEY = "atlas-estudos-checklist-v1" + (syncDemo ? "-" + syncDemo.device : "");
+  const guestKey = "atlas-estudos-checklist-v1" + (syncDemo ? "-" + syncDemo.device : "");
+  const accountSync = window.atlasAccountSync;
+  const KEY = accountSync ? guestKey + "-" + accountSync.account : guestKey;
   const $ = (id) => document.getElementById(id);
   const records = new Map(),
     views = new Map(),
@@ -186,6 +188,7 @@
     const data = snapshot();
     try {
       localStorage.setItem(KEY, JSON.stringify(data));
+      accountSync?.changed(data);
       storageOK = true;
       lastSaved = data.updatedAt;
       $("save-status").textContent =
@@ -2323,6 +2326,11 @@
   changePage();
   if (lastSaved) $("save-status").textContent = "Progresso recuperado deste navegador";
   if (!storageOK) $("save-status").textContent = "Salve um backup antes de fechar";
+  accountSync?.start(KEY, guestKey, snapshot, data => {
+    const value = JSON.stringify(data);
+    localStorage.setItem(KEY, value);
+    window.dispatchEvent(new StorageEvent("storage", {key: KEY, newValue: value}));
+  });
   syncDemo?.start((changes) => {
     for (const { id, day, studied } of changes) {
       if (!studyEntries.has(id) || !calendarDate(day) || typeof studied !== "boolean") continue;

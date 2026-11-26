@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import html
+import json
 import mimetypes
 import os
 import re
@@ -29,6 +30,7 @@ ASSETS = {"/estilos.css", "/aplicativo.js", "/simbolo.svg", "/dados/conteudos.js
 
 def initialize(db):
     db.executescript("""
+        CREATE TABLE IF NOT EXISTS progress(email TEXT, field TEXT, value TEXT, PRIMARY KEY(email,field));
         CREATE TABLE IF NOT EXISTS users(email TEXT PRIMARY KEY, salt BLOB, password BLOB);
         CREATE TABLE IF NOT EXISTS sessions(token BLOB PRIMARY KEY, email TEXT, expires INTEGER);
         CREATE TABLE IF NOT EXISTS resets(email TEXT PRIMARY KEY, digest BLOB, expires INTEGER, tries INTEGER);
@@ -152,6 +154,8 @@ class Atlas(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = urlsplit(self.path).path
+        if path == "/conta-sync.js":
+            return self.reply(Path(__file__).with_name("conta-sync.js").read_bytes(), mime="text/javascript")
         if path in ASSETS:
             mime = "text/javascript" if path.endswith(".js") else mimetypes.guess_type(path)[0]
             return self.reply((ROOT / path[1:]).read_bytes(), mime=mime)
@@ -164,11 +168,16 @@ class Atlas(BaseHTTPRequestHandler):
         body = (ROOT / "index.html").read_text(encoding="utf-8")
         button = 'id="sidebar-login" type="button">Login'
         label = "Minha conta" if email else "Login"
+        if email:
+            account = token_hash(email).hex()
+            body = body.replace('<script src="aplicativo.js">', f'<script src="/conta-sync.js" data-account="{account}"></script><script src="aplicativo.js">')
         self.reply(body.replace(button, f'id="sidebar-login" data-conta="/conta" type="button">{label}'))
 
     def do_POST(self):
         if self.headers.get("Origin") != ORIGIN:
             return self.send_error(403, "Origem incorreta")
+        if self.path == "/progresso":
+            return self.progress()
         if self.path not in {*PAGES, "/sair"}:
             return self.send_error(404)
         try:
@@ -181,6 +190,31 @@ class Atlas(BaseHTTPRequestHandler):
         with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as db, db:
             db.execute("BEGIN IMMEDIATE")
             self.submit(db, form)
+
+    def progress(self):
+        try:
+            size = int(self.headers.get("Content-Length", "0"))
+            if not 0 < size <= 8_000_000:
+                return self.send_error(413)
+            patch = json.loads(self.rfile.read(size))
+            if not isinstance(patch, dict) or any(len(k) > 1024 for k in patch):
+                return self.send_error(400)
+        except (ValueError, RecursionError):
+            return self.send_error(400)
+        with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as db, db:
+            db.execute("BEGIN IMMEDIATE")
+            _, email = self.session(db)
+            if not email or self.headers.get("X-Atlas-Account") != token_hash(email).hex():
+                return self.send_error(401)
+            for key, value in patch.items():
+                if value is None:
+                    db.execute("DELETE FROM progress WHERE email=? AND field=?", (email,key))
+                else:
+                    db.execute("INSERT OR REPLACE INTO progress VALUES(?,?,?)", (email,key,json.dumps(value)))
+            rows = db.execute("SELECT field,value FROM progress WHERE email=?", (email,))
+            state = {k: json.loads(v) for k,v in rows}
+            db.commit()
+        self.reply(json.dumps(state), mime="application/json")
 
     def submit(self, db, form):
         path = self.path

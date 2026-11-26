@@ -37,4 +37,4 @@ docker compose -f experimentos/login/compose.yaml down
 4. **Recuperação.** A rota `/recuperar` gera o código, guarda sua assinatura na tabela `resets` e envia a mensagem. A rota `/redefinir` confere o código, atualiza a senha e invalida código e sessões.
 5. **Verificação.** Execute `python experimentos/login/testar.py`. O teste cria contas, cookies e mensagens em uma pasta temporária e reinicia o servidor para verificar a persistência. Usa a biblioteca padrão do Python.
 
-O SQLite é específico deste experimento local. O Atlas continua disponível para visitantes e o progresso de estudos pertence ao perfil do navegador. A apresentação com banco em outro contêiner e o deploy na AWS são etapas posteriores.
+O SQLite é específico deste experimento local. Ao entrar na mesma conta em dois navegadores, marcações, notas, treinos e planejamento são sincronizados a cada três segundos com a página visível. Na primeira abertura, é possível importar os dados antigos do navegador. Anexos continuam locais. A apresentação com banco em outro contêiner e o deploy na AWS são etapas posteriores.

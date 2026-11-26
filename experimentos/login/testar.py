@@ -1,5 +1,7 @@
 """Teste de ponta a ponta com HTTP, banco e caixa de e-mail temporários."""
 import http.cookiejar
+import hashlib
+import json
 import os
 import re
 import shutil
@@ -61,6 +63,29 @@ class LoginTest(unittest.TestCase):
         req = urllib.request.Request(self.url+path, data=data, headers={"Origin": self.url})
         with self.client.open(req, timeout=10) as response:
             return response.read().decode()
+
+    def test_sync(self):
+        self.request("/cadastro", email=self.email, password=self.password)
+        pc = self.client
+        self.jar = http.cookiejar.CookieJar()
+        self.browser()
+        self.request("/conta", email=self.email, password=self.password)
+        def sync(client, changes):
+            request = urllib.request.Request(self.url+"/progresso", json.dumps(changes).encode(),
+                headers={"Origin":self.url, "X-Atlas-Account":hashlib.sha256(self.email.encode()).hexdigest()})
+            with client.open(request) as response:
+                return json.load(response)
+        a, b = '["items","topico","studied"]', '["items","outro","stars"]'
+        sync(pc, {a:True})
+        self.assertEqual(sync(self.client, {}), {a:True})
+        sync(self.client, {b:3})
+        self.assertEqual(sync(pc, {}), {a:True,b:3})
+        sync(pc, {a:None})
+        self.assertEqual(sync(self.client, {}), {b:3})
+        self.request("/cadastro", email="outra@example.test", password=self.password)
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            sync(self.client, {})
+        self.assertEqual(error.exception.code, 401)
 
     def test_conta(self):
         self.assertIn('data-conta="/conta"', self.request("/"))

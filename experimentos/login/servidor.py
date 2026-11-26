@@ -8,10 +8,9 @@ import os
 import re
 import secrets
 import smtplib
-import sqlite3
+import psycopg
 import ssl
 import time
-from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from email.message import EmailMessage
 from http.cookies import CookieError, SimpleCookie
@@ -29,16 +28,16 @@ ASSETS = {"/estilos.css", "/aplicativo.js", "/simbolo.svg", "/dados/conteudos.js
 
 
 def initialize(db):
-    db.executescript("""
+    db.execute("""
         CREATE TABLE IF NOT EXISTS progress(email TEXT, field TEXT, value TEXT, PRIMARY KEY(email,field));
-        CREATE TABLE IF NOT EXISTS users(email TEXT PRIMARY KEY, salt BLOB, password BLOB);
-        CREATE TABLE IF NOT EXISTS sessions(token BLOB PRIMARY KEY, email TEXT, expires INTEGER);
-        CREATE TABLE IF NOT EXISTS resets(email TEXT PRIMARY KEY, digest BLOB, expires INTEGER, tries INTEGER);
-        CREATE TABLE IF NOT EXISTS limits(action TEXT, subject TEXT, count INTEGER, expires INTEGER,
+        CREATE TABLE IF NOT EXISTS users(email TEXT PRIMARY KEY, salt BYTEA, password BYTEA);
+        CREATE TABLE IF NOT EXISTS sessions(token BYTEA PRIMARY KEY, email TEXT, expires BIGINT);
+        CREATE TABLE IF NOT EXISTS resets(email TEXT PRIMARY KEY, digest BYTEA, expires BIGINT, tries INTEGER);
+        CREATE TABLE IF NOT EXISTS limits(action TEXT, subject TEXT, count INTEGER, expires BIGINT,
                                          PRIMARY KEY(action,subject));
-        CREATE TABLE IF NOT EXISTS settings(name TEXT PRIMARY KEY, value BLOB);
+        CREATE TABLE IF NOT EXISTS settings(name TEXT PRIMARY KEY, value BYTEA);
     """)
-    db.execute("INSERT OR IGNORE INTO settings VALUES ('key',?)", (secrets.token_bytes(32),))
+    db.execute("INSERT INTO settings VALUES ('key',%s) ON CONFLICT (name) DO NOTHING", (secrets.token_bytes(32),))
     db.commit()
 
 
@@ -57,10 +56,10 @@ def code_hash(db, email, code):
 
 def limited(db, action, subject, maximum):
     now = int(time.time())
-    db.execute("DELETE FROM limits WHERE expires<=?", (now,))
-    db.execute("""INSERT INTO limits VALUES(?,?,1,?) ON CONFLICT(action,subject)
-                  DO UPDATE SET count=count+1""", (action, subject, now+600))
-    return db.execute("SELECT count FROM limits WHERE action=? AND subject=?", (action,subject)).fetchone()[0] > maximum
+    db.execute("DELETE FROM limits WHERE expires<=%s", (now,))
+    db.execute("""INSERT INTO limits VALUES(%s,%s,1,%s) ON CONFLICT(action,subject)
+                  DO UPDATE SET count=limits.count+1""", (action, subject, now+600))
+    return db.execute("SELECT count FROM limits WHERE action=%s AND subject=%s", (action,subject)).fetchone()[0] > maximum
 
 
 def send_code(email, code):
@@ -139,7 +138,7 @@ class Atlas(BaseHTTPRequestHandler):
             pass
         token = jar["atlas_session"].value if "atlas_session" in jar else ""
         digest = token_hash(token)
-        row = db.execute("SELECT email FROM sessions WHERE token=? AND expires>?", (digest,time.time())).fetchone()
+        row = db.execute("SELECT email FROM sessions WHERE token=%s AND expires>%s", (digest,time.time())).fetchone()
         return digest, row[0] if row else None
 
     def page(self, path, notice="", email=None):
@@ -161,7 +160,7 @@ class Atlas(BaseHTTPRequestHandler):
             return self.reply((ROOT / path[1:]).read_bytes(), mime=mime)
         if path not in {"/", "/index.html", *PAGES}:
             return self.send_error(404)
-        with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as db:
+        with psycopg.connect() as db:
             _, email = self.session(db)
         if path in PAGES:
             return self.page(path, email=email)
@@ -187,8 +186,7 @@ class Atlas(BaseHTTPRequestHandler):
             form = parse_qs(self.rfile.read(size).decode(), max_num_fields=5)
         except (ValueError, UnicodeError):
             return self.send_error(400)
-        with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as db, db:
-            db.execute("BEGIN IMMEDIATE")
+        with psycopg.connect() as db:
             self.submit(db, form)
 
     def progress(self):
@@ -201,17 +199,16 @@ class Atlas(BaseHTTPRequestHandler):
                 return self.send_error(400)
         except (ValueError, RecursionError):
             return self.send_error(400)
-        with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as db, db:
-            db.execute("BEGIN IMMEDIATE")
+        with psycopg.connect() as db:
             _, email = self.session(db)
             if not email or self.headers.get("X-Atlas-Account") != token_hash(email).hex():
                 return self.send_error(401)
-            for key, value in patch.items():
+            for key, value in sorted(patch.items()):
                 if value is None:
-                    db.execute("DELETE FROM progress WHERE email=? AND field=?", (email,key))
+                    db.execute("DELETE FROM progress WHERE email=%s AND field=%s", (email,key))
                 else:
-                    db.execute("INSERT OR REPLACE INTO progress VALUES(?,?,?)", (email,key,json.dumps(value)))
-            rows = db.execute("SELECT field,value FROM progress WHERE email=?", (email,))
+                    db.execute("INSERT INTO progress VALUES(%s,%s,%s) ON CONFLICT(email,field) DO UPDATE SET value=EXCLUDED.value", (email,key,json.dumps(value)))
+            rows = db.execute("SELECT field,value FROM progress WHERE email=%s", (email,))
             state = {k: json.loads(v) for k,v in rows}
             db.commit()
         self.reply(json.dumps(state), mime="application/json")
@@ -220,7 +217,7 @@ class Atlas(BaseHTTPRequestHandler):
         path = self.path
         digest, _ = self.session(db)
         if path == "/sair":
-            db.execute("DELETE FROM sessions WHERE token=?", (digest,))
+            db.execute("DELETE FROM sessions WHERE token=%s", (digest,))
             return self.redirect("/", self.cookie("", 0))
         email = form.get("email", [""])[0].strip().lower()
         password = form.get("password", [""])[0]
@@ -230,31 +227,32 @@ class Atlas(BaseHTTPRequestHandler):
             return self.page(path, "Muitas tentativas. Tente novamente em 10 minutos.")
         if path in {"/cadastro", "/redefinir"} and not 12 <= len(password) <= 128:
             return self.page(path, "Escolha uma senha entre 12 e 128 caracteres.")
-        user = db.execute("SELECT salt,password FROM users WHERE email=?", (email,)).fetchone()
+        db.execute("SELECT pg_advisory_xact_lock(hashtextextended(%s,0))", (email,))
+        user = db.execute("SELECT salt,password FROM users WHERE email=%s", (email,)).fetchone()
         if path == "/recuperar":
             frequent = limited(db, path, email, 3)
             if user and not frequent:
                 code = f"{secrets.randbelow(10**8):08d}"
-                db.execute("INSERT OR REPLACE INTO resets VALUES(?,?,?,5)", (email,code_hash(db,email,code),time.time()+600))
+                db.execute("INSERT INTO resets VALUES(%s,%s,%s,5) ON CONFLICT(email) DO UPDATE SET digest=EXCLUDED.digest, expires=EXCLUDED.expires, tries=5", (email,code_hash(db,email,code),int(time.time())+600))
                 db.commit()
                 MAIL.submit(deliver, email, code)
             return self.page("/redefinir", "Se houver uma conta para esse e-mail, você receberá um código.")
         if path == "/redefinir":
             code = form.get("code", [""])[0]
-            record = db.execute("SELECT digest FROM resets WHERE email=? AND expires>? AND tries>0", (email,time.time())).fetchone()
+            record = db.execute("SELECT digest FROM resets WHERE email=%s AND expires>%s AND tries>0", (email,time.time())).fetchone()
             if not record or not hmac.compare_digest(record[0], code_hash(db,email,code)):
-                db.execute("UPDATE resets SET tries=MAX(tries-1,0) WHERE email=?", (email,))
+                db.execute("UPDATE resets SET tries=GREATEST(tries-1,0) WHERE email=%s", (email,))
                 return self.page(path, "Código inválido ou expirado.")
             salt = secrets.token_bytes(16)
-            db.execute("UPDATE users SET salt=?,password=? WHERE email=?", (salt,password_hash(password,salt),email))
-            db.execute("DELETE FROM resets WHERE email=?", (email,))
-            db.execute("DELETE FROM sessions WHERE email=?", (email,))
+            db.execute("UPDATE users SET salt=%s,password=%s WHERE email=%s", (salt,password_hash(password,salt),email))
+            db.execute("DELETE FROM resets WHERE email=%s", (email,))
+            db.execute("DELETE FROM sessions WHERE email=%s", (email,))
             return self.page("/conta", "Senha alterada. Entre com a nova senha.")
         if path == "/cadastro":
             if user:
                 return self.page(path, "Não foi possível cadastrar esse e-mail. Tente entrar ou recuperar sua senha.")
             salt = secrets.token_bytes(16)
-            db.execute("INSERT INTO users VALUES(?,?,?)", (email,salt,password_hash(password,salt)))
+            db.execute("INSERT INTO users VALUES(%s,%s,%s)", (email,salt,password_hash(password,salt)))
         else:
             if limited(db, path, email, 10):
                 return self.page(path, "Muitas tentativas. Tente novamente em 10 minutos.")
@@ -262,15 +260,15 @@ class Atlas(BaseHTTPRequestHandler):
             if not user or not hmac.compare_digest(check,user[1]):
                 return self.page(path, "E-mail ou senha incorretos.")
         token = secrets.token_urlsafe(32)
-        db.execute("DELETE FROM sessions WHERE token=? OR expires<=?", (digest,time.time()))
-        db.execute("INSERT INTO sessions VALUES(?,?,?)", (token_hash(token),email,time.time()+YEAR))
+        db.execute("DELETE FROM sessions WHERE token=%s OR expires<=%s", (digest,time.time()))
+        db.execute("INSERT INTO sessions VALUES(%s,%s,%s)", (token_hash(token),email,int(time.time())+YEAR))
         db.commit()
         self.redirect("/", self.cookie(token, YEAR))
 
 
 if __name__ == "__main__":
     DATA.mkdir(parents=True, exist_ok=True)
-    with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as connection:
+    with psycopg.connect() as connection:
         initialize(connection)
     print(f"Atlas em {ORIGIN} | Dados em {DATA}", flush=True)
     ThreadingHTTPServer((os.getenv("ATLAS_BIND", "127.0.0.1"), PORT), Atlas).serve_forever()

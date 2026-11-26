@@ -3,9 +3,16 @@ services:
     build:
       context: ../..
       dockerfile: experimentos/login/Dockerfile
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "127.0.0.1:8080:8080"
     environment:
+      PGHOST: db
+      PGDATABASE: atlas
+      PGUSER: atlas
+      PGPASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
       ATLAS_SMTP_HOST: ${ATLAS_SMTP_HOST:-}
       ATLAS_SMTP_PORT: ${ATLAS_SMTP_PORT:-587}
       ATLAS_MAIL_FROM: ${ATLAS_MAIL_FROM:-atlas@localhost}
@@ -13,5 +20,19 @@ services:
       ATLAS_SMTP_PASSWORD: ${ATLAS_SMTP_PASSWORD:-}
     volumes:
       - contas:/dados
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_DB: atlas
+      POSTGRES_USER: atlas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U atlas -d atlas"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
 volumes:
+  postgres:
   contas:

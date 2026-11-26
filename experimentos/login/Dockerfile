@@ -1,5 +1,7 @@
 FROM python:3.13-slim
 WORKDIR /app
+COPY experimentos/login/requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 COPY index.html estilos.css aplicativo.js simbolo.svg ./
 COPY dados/ dados/
 COPY experimentos/login/servidor.py experimentos/login/conta.html experimentos/login/

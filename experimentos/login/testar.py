@@ -1,4 +1,6 @@
 """Teste de ponta a ponta com HTTP, banco e caixa de e-mail temporários."""
+import psycopg
+from psycopg import sql
 import http.cookiejar
 import hashlib
 import json
@@ -30,12 +32,21 @@ class LoginTest(unittest.TestCase):
         self.url = f"http://127.0.0.1:{port}"
         self.env = dict(os.environ, ATLAS_DATA=str(self.data), ATLAS_PORT=str(port),
                         ATLAS_ORIGIN=self.url, ATLAS_BIND="127.0.0.1", ATLAS_SMTP_HOST="")
+        schema = "atlas_test_" + uuid.uuid4().hex
+        with psycopg.connect() as db:
+            db.execute(sql.SQL("CREATE SCHEMA {}").format(sql.Identifier(schema)))
+        self.addCleanup(self.drop_schema, schema)
+        self.env["PGOPTIONS"] = "-c search_path=" + schema
         self.email = "aluno@example.test"
         self.password = "senha-inicial-123"
         self.jar = http.cookiejar.MozillaCookieJar(str(self.data / "cookies.txt"))
         self.browser()
         self.start_server()
         self.addCleanup(self.stop_server)
+
+    def drop_schema(self, schema):
+        with psycopg.connect() as db:
+            db.execute(sql.SQL("DROP SCHEMA {} CASCADE").format(sql.Identifier(schema)))
 
     def browser(self):
         self.client = urllib.request.build_opener(urllib.request.ProxyHandler({}),

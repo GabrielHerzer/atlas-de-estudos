@@ -1,8 +1,9 @@
 # Login do Atlas — protótipo
 
-Na raiz da branch `Feat/login`, com Python 3.11 ou superior, execute:
+Na branch `Feat/banco_de_dados`, use um PostgreSQL disponível e um banco vazio pertencente ao usuário do Atlas. Configure `PGHOST`, `PGPORT`, `PGDATABASE`, `PGUSER` e `PGPASSWORD` no ambiente. A aplicação cria as tabelas ao iniciar. Com Python 3.11 ou superior, na raiz do projeto, execute:
 
 ```sh
+python -m pip install -r experimentos/login/requirements.txt
 python experimentos/login/servidor.py
 ```
 
@@ -16,13 +17,13 @@ Para entrega em uma caixa real, configure no ambiente do servidor `ATLAS_SMTP_HO
 
 ## Executar com Docker
 
-Na raiz, com Docker Desktop em execução:
+Defina `POSTGRES_PASSWORD` no ambiente com uma senha própria e, na raiz, execute:
 
 ```sh
 docker compose -f experimentos/login/compose.yaml up --build -d
 ```
 
-Acesse o mesmo endereço. Use apenas uma forma de execução por vez, pois ambas usam a porta 8080. O volume `contas` guarda o SQLite e as mensagens de demonstração entre reinicializações. Para copiar as mensagens para seu computador:
+Acesse o mesmo endereço. Use apenas uma forma de execução por vez, pois ambas usam a porta 8080. O serviço `db` guarda os dados no volume `postgres`. O volume `contas` guarda as mensagens de demonstração. Para copiar as mensagens para seu computador:
 
 ```sh
 docker compose -f experimentos/login/compose.yaml cp atlas:/dados/emails ./emails-demo
@@ -32,9 +33,9 @@ docker compose -f experimentos/login/compose.yaml down
 ## Como reproduzir e entender
 
 1. **Interface.** O servidor abre o index existente e ativa o botão lateral para a rota `/conta`. O formulário em `conta.html` envia e-mail e senha ao servidor. Abrir o HTML diretamente ou pelo GitHub Pages permite usar o Atlas estático, mas o experimento exige o processo Python.
-2. **Cadastro.** Em `servidor.py`, a rota `/cadastro` gera um salt aleatório e calcula o hash da senha com scrypt. O SQLite guarda e-mail, salt e hash na tabela `users`.
+2. **Cadastro.** Em `servidor.py`, a rota `/cadastro` gera um salt aleatório e calcula o hash da senha com scrypt. O PostgreSQL guarda e-mail, salt e hash na tabela `users`.
 3. **Sessão.** Após autenticar, o servidor cria um token aleatório. O navegador recebe o token em um cookie HttpOnly persistente. A tabela `sessions` guarda o hash e o vencimento, permitindo reconhecer a sessão depois de reiniciar o navegador ou o servidor.
 4. **Recuperação.** A rota `/recuperar` gera o código, guarda sua assinatura na tabela `resets` e envia a mensagem. A rota `/redefinir` confere o código, atualiza a senha e invalida código e sessões.
-5. **Verificação.** Execute `python experimentos/login/testar.py`. O teste cria contas, cookies e mensagens em uma pasta temporária e reinicia o servidor para verificar a persistência. Usa a biblioteca padrão do Python.
+5. **Verificação.** Execute `python experimentos/login/testar.py`. O teste usa as mesmas variáveis de conexão, cria um esquema temporário por teste e o remove ao concluir. Cookies e mensagens são temporários.
 
-O SQLite é específico deste experimento local. Ao entrar na mesma conta em dois navegadores, marcações, notas, treinos e planejamento são sincronizados a cada três segundos com a página visível. Na primeira abertura, é possível importar os dados antigos do navegador. Anexos continuam locais. A apresentação com banco em outro contêiner e o deploy na AWS são etapas posteriores.
+Ao entrar na mesma conta em dois navegadores, marcações, notas, treinos e planejamento são sincronizados a cada três segundos com a página visível. Na primeira abertura, é possível importar os dados antigos do navegador. Anexos continuam locais. A implantação na AWS fica para a etapa da apresentação.

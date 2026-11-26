@@ -14,7 +14,7 @@ from contextlib import closing
 from concurrent.futures import ThreadPoolExecutor
 from email.message import EmailMessage
 from http.cookies import CookieError, SimpleCookie
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
@@ -105,6 +105,8 @@ TEMPLATE = Path(__file__).with_name("conta.html").read_text(encoding="utf-8")
 
 
 class Atlas(BaseHTTPRequestHandler):
+    timeout = 15
+
     def reply(self, body="", status=200, mime="text/html; charset=utf-8", headers=()):
         data = body.encode() if isinstance(body, str) else body
         self.send_response(status)
@@ -177,6 +179,7 @@ class Atlas(BaseHTTPRequestHandler):
         except (ValueError, UnicodeError):
             return self.send_error(400)
         with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as db, db:
+            db.execute("BEGIN IMMEDIATE")
             self.submit(db, form)
 
     def submit(self, db, form):
@@ -236,4 +239,4 @@ if __name__ == "__main__":
     with closing(sqlite3.connect(DATA / "atlas.sqlite3")) as connection:
         initialize(connection)
     print(f"Atlas em {ORIGIN} | Dados em {DATA}", flush=True)
-    HTTPServer((os.getenv("ATLAS_BIND", "127.0.0.1"), PORT), Atlas).serve_forever()
+    ThreadingHTTPServer((os.getenv("ATLAS_BIND", "127.0.0.1"), PORT), Atlas).serve_forever()

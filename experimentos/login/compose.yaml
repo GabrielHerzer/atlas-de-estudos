@@ -1,0 +1,17 @@
+services:
+  atlas:
+    build:
+      context: ../..
+      dockerfile: experimentos/login/Dockerfile
+    ports:
+      - "127.0.0.1:8080:8080"
+    environment:
+      ATLAS_SMTP_HOST: ${ATLAS_SMTP_HOST:-}
+      ATLAS_SMTP_PORT: ${ATLAS_SMTP_PORT:-587}
+      ATLAS_MAIL_FROM: ${ATLAS_MAIL_FROM:-atlas@localhost}
+      ATLAS_SMTP_USER: ${ATLAS_SMTP_USER:-}
+      ATLAS_SMTP_PASSWORD: ${ATLAS_SMTP_PASSWORD:-}
+    volumes:
+      - contas:/dados
+volumes:
+  contas:

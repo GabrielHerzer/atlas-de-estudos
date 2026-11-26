@@ -1602,7 +1602,12 @@
     }
   });
   $("sidebar-login").addEventListener("click", () => {
-    $("sidebar-login-status").textContent = "Em breve";
+    const destino = $("sidebar-login").dataset.conta;
+    if (destino) {
+      window.location.assign(destino);
+    } else {
+      $("sidebar-login-status").textContent = "Para testar o login, inicie o servidor do protótipo.";
+    }
   });
 
   const overviewSubjects = new Map(
